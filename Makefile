@@ -30,7 +30,7 @@ endif
 #EXTRA_CFLAGS += -DINTERNAL_TESTING
 
 ifneq ($(KERNELRELEASE),)
-	$(TARGET_MODULE)-objs := libxdma.o xdma_mod.o xdma_thread.o debug.o
+	$(TARGET_MODULE)-objs := libxdma.o nupanet.o xdma_thread.o debug.o
 	obj-m := $(TARGET_MODULE).o
 else
 	BUILDSYSTEM_DIR:=/lib/modules/$(shell uname -r)/build

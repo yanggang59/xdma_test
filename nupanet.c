@@ -1,0 +1,288 @@
+/*
+ * This file is part of the Xilinx DMA IP Core driver for Linux
+ *
+ * Copyright (c) 2016-present,  Xilinx, Inc.
+ * All rights reserved.
+ *
+ * This source code is free software; you can redistribute it and/or modify it
+ * under the terms and conditions of the GNU General Public License,
+ * version 2, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * The full GNU General Public License is included in this distribution in
+ * the file called "COPYING".
+ */
+
+#define pr_fmt(fmt)     KBUILD_MODNAME ":%s: " fmt, __func__
+
+#include <linux/ioctl.h>
+#include <linux/types.h>
+#include <linux/errno.h>
+#include <linux/aer.h>
+/* include early, to verify it depends only on the headers above */
+#include "libxdma_api.h"
+#include "libxdma.h"
+#include "nupanet.h"
+
+#define DRV_MODULE_NAME          "nupanet"
+
+MODULE_AUTHOR("Xilinx, Inc.");
+MODULE_LICENSE("Dual BSD/GPL");
+
+
+static const struct pci_device_id pci_ids[] = {
+	{ PCI_DEVICE(0x10ee, 0x9148), },
+	{0,}
+};
+MODULE_DEVICE_TABLE(pci, pci_ids);
+
+static void adapter_free(struct nupanet_adapter *adapter)
+{
+	struct xdma_dev *xdev = adapter->xdev;
+
+	pr_info("adapter 0x%p, destroy_interfaces, xdev 0x%p.\n", adapter, xdev);
+	//adapter_destroy_interfaces(adapter);
+	adapter->xdev = NULL;
+	pr_info("adapter 0x%p, xdev 0x%p xdma_device_close.\n", adapter, xdev);
+	xdma_device_close(adapter->pdev, xdev);
+	kfree(adapter);
+}
+
+static struct nupanet_adapter *adapter_alloc(struct pci_dev *pdev)
+{
+	struct nupanet_adapter *adapter = kmalloc(sizeof(*adapter), GFP_KERNEL);
+
+	if (!adapter)
+		return NULL;
+	memset(adapter, 0, sizeof(*adapter));
+
+	adapter->magic = MAGIC_DEVICE;
+	adapter->pdev = pdev;
+	adapter->user_max = MAX_USER_IRQ;
+	adapter->h2c_channel_max = XDMA_CHANNEL_NUM_MAX;
+	adapter->c2h_channel_max = XDMA_CHANNEL_NUM_MAX;
+
+	return adapter;
+}
+
+static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
+{
+	int rv = 0;
+	struct nupanet_adapter *adapter = NULL;
+	struct xdma_dev *xdev;
+	void *hndl;
+
+	adapter = adapter_alloc(pdev);
+	if (!adapter)
+		return -ENOMEM;
+
+	hndl = xdma_device_open(DRV_MODULE_NAME, pdev, &adapter->user_max,
+			&adapter->h2c_channel_max, &adapter->c2h_channel_max);
+	if (!hndl) {
+		rv = -EINVAL;
+		goto err_out;
+	}
+
+	if (adapter->user_max > MAX_USER_IRQ) {
+		pr_err("Maximum users limit reached\n");
+		rv = -EINVAL;
+		goto err_out;
+	}
+
+	if (adapter->h2c_channel_max > XDMA_CHANNEL_NUM_MAX) {
+		pr_err("Maximun H2C channel limit reached\n");
+		rv = -EINVAL;
+		goto err_out;
+	}
+
+	if (adapter->c2h_channel_max > XDMA_CHANNEL_NUM_MAX) {
+		pr_err("Maximun C2H channel limit reached\n");
+		rv = -EINVAL;
+		goto err_out;
+	}
+
+	if (!adapter->h2c_channel_max && !adapter->c2h_channel_max)
+		pr_warn("NO engine found!\n");
+
+	if (adapter->user_max) {
+		u32 mask = (1 << (adapter->user_max + 1)) - 1;
+
+		rv = xdma_user_isr_enable(hndl, mask);
+		if (rv)
+			goto err_out;
+	}
+
+	/* make sure no duplicate */
+	xdev = xdev_find_by_pdev(pdev);
+	if (!xdev) {
+		pr_warn("NO xdev found!\n");
+		rv =  -EINVAL;
+		goto err_out;
+	}
+
+	if (hndl != xdev) {
+		pr_err("xdev handle mismatch\n");
+		rv =  -EINVAL;
+		goto err_out;
+	}
+
+	pr_info("%s xdma%d, pdev 0x%p, xdev 0x%p, 0x%p, usr %d, ch %d,%d.\n",
+		dev_name(&pdev->dev), xdev->idx, pdev, adapter, xdev,
+		adapter->user_max, adapter->h2c_channel_max,
+		adapter->c2h_channel_max);
+
+	adapter->xdev = hndl;
+#if HAS_DEBUG_CHAR_DEV
+	create_debug_cdev(&adapter->debug);
+#endif
+	dev_set_drvdata(&pdev->dev, adapter);
+
+	return 0;
+
+err_out:
+	pr_err("pdev 0x%p, err %d.\n", pdev, rv);
+	adapter_free(adapter);
+	return rv;
+}
+
+static void remove_one(struct pci_dev *pdev)
+{
+	struct nupanet_adapter *adapter;
+
+	if (!pdev)
+		return;
+
+	adapter = dev_get_drvdata(&pdev->dev);
+	if (!adapter)
+		return;
+
+	pr_info("pdev 0x%p, xdev 0x%p, 0x%p.\n",pdev, adapter, adapter->xdev);
+#if HAS_DEBUG_CHAR_DEV
+	delete_debug_cdev(&adapter->debug);
+#endif
+	adapter_free(adapter);
+	dev_set_drvdata(&pdev->dev, NULL);
+}
+
+static pci_ers_result_t xdma_error_detected(struct pci_dev *pdev,
+					pci_channel_state_t state)
+{
+	struct nupanet_adapter *adapter = dev_get_drvdata(&pdev->dev);
+
+	switch (state) {
+	case pci_channel_io_normal:
+		return PCI_ERS_RESULT_CAN_RECOVER;
+	case pci_channel_io_frozen:
+		pr_warn("dev 0x%p,0x%p, frozen state error, reset controller\n",
+			pdev, adapter);
+		xdma_device_offline(pdev, adapter->xdev);
+		pci_disable_device(pdev);
+		return PCI_ERS_RESULT_NEED_RESET;
+	case pci_channel_io_perm_failure:
+		pr_warn("dev 0x%p,0x%p, failure state error, req. disconnect\n",
+			pdev, adapter);
+		return PCI_ERS_RESULT_DISCONNECT;
+	}
+	return PCI_ERS_RESULT_NEED_RESET;
+}
+
+static pci_ers_result_t xdma_slot_reset(struct pci_dev *pdev)
+{
+	struct nupanet_adapter *adapter = dev_get_drvdata(&pdev->dev);
+
+	pr_info("0x%p restart after slot reset\n", adapter);
+	if (pci_enable_device_mem(pdev)) {
+		pr_info("0x%p failed to renable after slot reset\n", adapter);
+		return PCI_ERS_RESULT_DISCONNECT;
+	}
+
+	pci_set_master(pdev);
+	pci_restore_state(pdev);
+	pci_save_state(pdev);
+	xdma_device_online(pdev, adapter->xdev);
+
+	return PCI_ERS_RESULT_RECOVERED;
+}
+
+static void xdma_error_resume(struct pci_dev *pdev)
+{
+	struct nupanet_adapter *adapter = dev_get_drvdata(&pdev->dev);
+
+	pr_info("dev 0x%p,0x%p.\n", pdev, adapter);
+#if PCI_AER_NAMECHANGE
+	pci_aer_clear_nonfatal_status(pdev);
+#else
+	pci_cleanup_aer_uncorrect_error_status(pdev);
+#endif
+
+}
+
+#if KERNEL_VERSION(4, 13, 0) <= LINUX_VERSION_CODE
+static void xdma_reset_prepare(struct pci_dev *pdev)
+{
+	struct nupanet_adapter *adapter = dev_get_drvdata(&pdev->dev);
+
+	pr_info("dev 0x%p,0x%p.\n", pdev, adapter);
+	xdma_device_offline(pdev, adapter->xdev);
+}
+
+static void xdma_reset_done(struct pci_dev *pdev)
+{
+	struct nupanet_adapter *adapter = dev_get_drvdata(&pdev->dev);
+
+	pr_info("dev 0x%p,0x%p.\n", pdev, adapter);
+	xdma_device_online(pdev, adapter->xdev);
+}
+
+#elif KERNEL_VERSION(3, 16, 0) <= LINUX_VERSION_CODE
+static void xdma_reset_notify(struct pci_dev *pdev, bool prepare)
+{
+	struct nupanet_adapter *adapter = dev_get_drvdata(&pdev->dev);
+
+	pr_info("dev 0x%p,0x%p, prepare %d.\n", pdev, adapter, prepare);
+
+	if (prepare)
+		xdma_device_offline(pdev, adapter->xdev);
+	else
+		xdma_device_online(pdev, adapter->xdev);
+}
+#endif
+
+static const struct pci_error_handlers xdma_err_handler = {
+	.error_detected	= xdma_error_detected,
+	.slot_reset	= xdma_slot_reset,
+	.resume		= xdma_error_resume,
+#if KERNEL_VERSION(4, 13, 0) <= LINUX_VERSION_CODE
+	.reset_prepare	= xdma_reset_prepare,
+	.reset_done	= xdma_reset_done,
+#elif KERNEL_VERSION(3, 16, 0) <= LINUX_VERSION_CODE
+	.reset_notify	= xdma_reset_notify,
+#endif
+};
+
+static struct pci_driver pci_driver = {
+	.name = DRV_MODULE_NAME,
+	.id_table = pci_ids,
+	.probe = probe_one,
+	.remove = remove_one,
+	.err_handler = &xdma_err_handler,
+};
+
+static int nupanet_init(void)
+{
+	return pci_register_driver(&pci_driver);
+}
+
+static void nupanet_exit(void)
+{
+	/* unregister this driver from the PCI bus driver */
+	dbg_init("pci_unregister_driver.\n");
+	pci_unregister_driver(&pci_driver);
+}
+
+module_init(nupanet_init);
+module_exit(nupanet_exit);

@@ -15,7 +15,7 @@
 #include <linux/sched.h>
 #include <linux/wait.h>
 #include "debug.h"
-#include "xdma_mod.h"
+#include "nupanet.h"
 #include "libxdma_api.h"
 
 void free_resource(struct debug_cdev* debug)
@@ -34,7 +34,7 @@ static int dma_write_test(struct debug_cdev* debug, int pos, char* buf, int leng
 	int res;
 	int i;
 	bool dma_mapped;
-	struct xdma_pci_dev* xpdev;
+	struct nupanet_adapter* adapter;
 	struct xdma_dev *xdev;
 	struct xdma_engine *engine;
 	struct scatterlist *sg;
@@ -43,8 +43,8 @@ static int dma_write_test(struct debug_cdev* debug, int pos, char* buf, int leng
 	printk("[DEBUG] dma test \r\n");
 	sgt = kzalloc(sizeof(struct sg_table), GFP_KERNEL);
 
-	xpdev = container_of(debug, struct xdma_pci_dev, debug);
-	xdev = xpdev->xdev;
+	adapter = container_of(debug, struct nupanet_adapter, debug);
+	xdev = adapter->xdev;
 	engine = &xdev->engine_h2c[0];
 	pos = 0;
 	dma_mapped = false;
