@@ -2296,6 +2296,7 @@ static int transfer_desc_init(struct xdma_transfer *transfer, int count)
  * @second second descriptor, or NULL if first descriptor must be set as last.
  * @second_bus bus address of second descriptor
  */
+#if 0
 static void xdma_desc_link(struct xdma_desc *first, struct xdma_desc *second,
 			   dma_addr_t second_bus)
 {
@@ -2325,6 +2326,7 @@ static void xdma_desc_link(struct xdma_desc *first, struct xdma_desc *second,
 	/* write bytes and next_num */
 	first->control = cpu_to_le32(control);
 }
+#endif
 
 /* xdma_desc_adjacent -- Set how many descriptors are adjacent to this one */
 static void xdma_desc_adjacent(struct xdma_desc *desc, u32 next_adjacent)

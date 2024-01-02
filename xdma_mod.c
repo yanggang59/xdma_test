@@ -355,19 +355,20 @@ static struct pci_driver pci_driver = {
 
 static int xdma_mod_init(void)
 {
-	//int rv;
+#if 0
+	int rv;
 
-	//pr_info("%s", version);
+	pr_info("%s", version);
 
 	if (desc_blen_max > XDMA_DESC_BLEN_MAX)
 		desc_blen_max = XDMA_DESC_BLEN_MAX;
 		pr_info("desc_blen_max: 0x%x/%u \n",
 		desc_blen_max, desc_blen_max);
 
-	// rv = xdma_cdev_init();
-	// if (rv < 0)
-	// 	return rv;
-
+	rv = xdma_cdev_init();
+	if (rv < 0)
+		return rv;
+#endif
 	return pci_register_driver(&pci_driver);
 }
 

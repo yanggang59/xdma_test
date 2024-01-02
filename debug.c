@@ -31,7 +31,6 @@ void free_resource(struct debug_cdev* debug)
 
 static int dma_write_test(struct debug_cdev* debug, int pos, char* buf, int length)
 {
-	printk("[DEBUG] dma test \r\n");
 	int res;
 	int i;
 	bool dma_mapped;
@@ -41,7 +40,7 @@ static int dma_write_test(struct debug_cdev* debug, int pos, char* buf, int leng
 	struct scatterlist *sg;
 	unsigned int pages_nr;
 	struct sg_table *sgt;
-
+	printk("[DEBUG] dma test \r\n");
 	sgt = kzalloc(sizeof(struct sg_table), GFP_KERNEL);
 
 	xpdev = container_of(debug, struct xdma_pci_dev, debug);
@@ -119,10 +118,10 @@ static ssize_t debug_write(struct file *file, const char *src, size_t count, lof
 	return count;
 #else
 	struct debug_cdev *debug = (struct debug_cdev *)file->private_data;
-	printk("[DEBUG] dma write \r\n");
 	int length = 4096;
 	int pos = 0;
 	char* buf = kmalloc(length, GFP_KERNEL);
+	printk("[DEBUG] dma write \r\n");
 	memset(buf, 'X', length);
 	dma_write_test(debug, pos, buf, length);
 	kfree(buf);
