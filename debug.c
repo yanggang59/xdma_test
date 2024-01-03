@@ -29,6 +29,24 @@ void free_resource(struct debug_cdev* debug)
 	}
 }
 
+void dump_buf(char* buf, int len)
+{
+	int i,j;
+  printk("**************************************************************************************\r\n");
+  printk("     ");
+  for(i = 0; i < 16; i++) 
+    printk("%4X ", i);
+
+  for(j = 0; j < len; j++) {
+    if(j % 16 == 0) {
+      printk("\n%4X ", j);
+    }
+    printk("%4X ", buf[j]);
+  }
+
+  printk("\n**************************************************************************************\r\n");
+}
+
 static int dma_write_test(struct debug_cdev* debug, int pos, char* buf, int length)
 {
 	int res;
@@ -40,7 +58,7 @@ static int dma_write_test(struct debug_cdev* debug, int pos, char* buf, int leng
 	struct scatterlist *sg;
 	unsigned int pages_nr;
 	struct sg_table *sgt;
-	printk("[DEBUG] dma test \r\n");
+	printk("[DEBUG] dma write test \r\n");
 	sgt = kzalloc(sizeof(struct sg_table), GFP_KERNEL);
 
 	adapter = container_of(debug, struct nupanet_adapter, debug);
@@ -77,6 +95,53 @@ out:
 }
 
 
+static int dma_read_test(struct debug_cdev* debug, int pos, char* buf, int length)
+{
+	int res;
+	int i;
+	bool dma_mapped;
+	struct nupanet_adapter* adapter;
+	struct xdma_dev *xdev;
+	struct xdma_engine *engine;
+	struct scatterlist *sg;
+	unsigned int pages_nr;
+	struct sg_table *sgt;
+	printk("[DEBUG] dma read test \r\n");
+	sgt = kzalloc(sizeof(struct sg_table), GFP_KERNEL);
+
+	adapter = container_of(debug, struct nupanet_adapter, debug);
+	xdev = adapter->xdev;
+	engine = &xdev->engine_c2h[0];
+	pos = 0;
+	dma_mapped = false;
+	
+	pages_nr = (((unsigned long)buf + length + PAGE_SIZE - 1) - ((unsigned long)buf & PAGE_MASK)) >> PAGE_SHIFT;
+	if (pages_nr == 0)
+		return -EINVAL;
+
+	if (sg_alloc_table(sgt, pages_nr, GFP_KERNEL)) {
+		pr_err("sgl OOM.\n");
+		res = -ENOMEM;
+		goto out;
+	}
+	sg = &sgt->sgl[0];
+	for (i = 0; i < pages_nr; i++) {
+		unsigned int offset = offset_in_page(buf);
+		unsigned int nbytes = min_t(unsigned int, PAGE_SIZE - offset, length);
+		sg_set_buf(sg, buf, nbytes);
+		buf += nbytes;
+		length -= nbytes;
+		sg = sg_next(sg);
+	}
+
+	res = xdma_xfer_submit(xdev, engine->channel, 0, pos, sgt, dma_mapped, 0);
+
+out:
+	kfree(sgt);
+	kfree(buf);
+	return res;
+}
+
 static int debug_open(struct inode *inode, struct file *file)
 { 
     struct debug_cdev *debug;
@@ -103,6 +168,14 @@ static ssize_t debug_read(struct file *file, char *dst, size_t count, loff_t *f_
 	*f_offset += count;
 	return count;
 #else
+	struct debug_cdev *debug = (struct debug_cdev *)file->private_data;
+	int length = 4096;
+	int pos = 0;
+	char* buf = kmalloc(length, GFP_KERNEL);
+	printk("[DEBUG] dma read \r\n");
+	dma_read_test(debug, pos, buf, length);
+	dump_buf(buf, length);
+	kfree(buf);
 	return count;
 #endif
 }

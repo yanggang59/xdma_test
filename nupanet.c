@@ -177,7 +177,7 @@ static int nupanet_set_mac(struct net_device *netdev, void *p)
     // Get Device ID, generate MAC according to Device ID
     // Change to reg version later 
     struct pci_dev *pdev = to_pci_dev(netdev->dev.parent);
-    int dev_id = pci_dev_id(pdev);
+    int dev_id = pdev->device;
 	NUPA_DEBUG("nupanet_set_mac, dev_id = %#x \r\n", dev_id);
 	memcpy(mac_addr, default_mac, ETH_ALEN);
     mac_addr[5] = dev_id_to_host_id(dev_id);
@@ -187,8 +187,7 @@ static int nupanet_set_mac(struct net_device *netdev, void *p)
     return 0;
 }
 
-static void nupanet_tx_timeout(struct net_device *dev,
-		unsigned int txqueue)
+static void nupanet_tx_timeout(struct net_device *dev, unsigned int txqueue)
 {
     NUPA_DEBUG("nupanet_tx_timeout\r\n");
 }
@@ -205,10 +204,15 @@ static int nupanet_validate_addr(struct net_device *dev)
 	return 0;
 }
 
-static int nupanet_eth_ioctl(struct net_device *dev,
-		 struct ifreq *ifr, int cmd)
+static int nupanet_eth_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 {
     NUPA_DEBUG("nupanet_eth_ioctl, cmd = %d\r\n", cmd);
+	return 0;
+}
+
+static int nupanet_do_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
+{
+    NUPA_DEBUG("nupanet_do_ioctl, cmd = %d\r\n", cmd);
 	return 0;
 }
 
@@ -230,6 +234,7 @@ static const struct net_device_ops nupanet_netdev_ops = {
     .ndo_set_mac_address	= nupanet_set_mac,
     .ndo_tx_timeout		= nupanet_tx_timeout,
     .ndo_change_mtu		= nupanet_change_mtu,
+	.ndo_do_ioctl		= nupanet_do_ioctl,
     .ndo_eth_ioctl		= nupanet_eth_ioctl,
     .ndo_validate_addr	= nupanet_validate_addr,
 #ifdef CONFIG_NET_POLL_CONTROLLER
@@ -276,6 +281,9 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	void *hndl;
     struct net_device *netdev;
     int err;
+
+	int dev_id = pdev->device;
+	NUPA_DEBUG("probe_one, dev_id = %#x \r\n", dev_id);
 
 	adapter = adapter_alloc(pdev);
 	if (!adapter) {
@@ -354,7 +362,7 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	NUPA_DEBUG("set mac and name \r\n");
 	nupanet_set_mac(netdev, NULL);
-	strcpy(netdev->name, "nupa_net%d");
+	strcpy(netdev->name, "nupa_net0");
 	NUPA_DEBUG("netif_napi_add \r\n");
     netif_napi_add(netdev, &adapter->napi, nupanet_poll, 64);
 
@@ -389,8 +397,8 @@ static void remove_one(struct pci_dev *pdev)
 #if HAS_DEBUG_CHAR_DEV
 	delete_debug_cdev(&adapter->debug);
 #endif
-	adapter_free(adapter);
 	dev_set_drvdata(&pdev->dev, NULL);
+	adapter_free(adapter);
 }
 
 static pci_ers_result_t xdma_error_detected(struct pci_dev *pdev,
