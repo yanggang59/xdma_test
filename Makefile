@@ -18,7 +18,7 @@ $(warning XVC_FLAGS: $(XVC_FLAGS).)
 
 topdir := $(shell cd $(src)/.. && pwd)
 
-TARGET_MODULE:=xdma_test
+TARGET_MODULE:=nupa_net
 
 EXTRA_CFLAGS := -I$(topdir)/include $(XVC_FLAGS)
 ifeq ($(DEBUG),1)
