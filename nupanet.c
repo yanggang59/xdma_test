@@ -1,22 +1,3 @@
-/*
- * This file is part of the Xilinx DMA IP Core driver for Linux
- *
- * Copyright (c) 2016-present,  Xilinx, Inc.
- * All rights reserved.
- *
- * This source code is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
- * more details.
- *
- * The full GNU General Public License is included in this distribution in
- * the file called "COPYING".
- */
-
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s: " fmt, __func__
 
 #include <linux/ioctl.h>
@@ -29,10 +10,18 @@
 #include "nupanet.h"
 
 #define DRV_MODULE_NAME          "nupanet"
+#undef DEBUG_THIS_MODULE
+#define DEBUG_THIS_MODULE          1
+#if DEBUG_THIS_MODULE
+#define NUPA_DEBUG(fmt,...)             printk("[NUPA DEBUG] "fmt, ##__VA_ARGS__)
+#else
+#define NUPA_DEBUG(fmt,...)
+#endif
 
-MODULE_AUTHOR("Xilinx, Inc.");
+MODULE_AUTHOR("Clussys, Inc.");
 MODULE_LICENSE("Dual BSD/GPL");
 
+#define SHARING_BAR                0
 
 static const struct pci_device_id pci_ids[] = {
 	{ PCI_DEVICE(0x10ee, 0x9148), },
@@ -75,6 +64,210 @@ static struct nupanet_adapter *adapter_alloc(struct pci_dev *pdev)
 	return adapter;
 }
 
+int nupanet_open(struct net_device *dev)
+{
+    printk("nupanet_open called\n");
+    //netif_start_queue(dev);
+    return 0;
+}
+
+int nupanet_release(struct net_device *dev)
+{
+    printk("nupanet_release called\n");
+    //netif_stop_queue(dev);
+    return 0;
+}
+
+int nupanet_close(struct net_device *netdev) 
+{
+    printk("[DEBUG] nupanet_close\r\n");
+    return 0; 
+}
+
+static void nupanet_set_rx_mode(struct net_device *netdev) 
+{
+    printk("[DEBUG] nupanet_set_rx_mode\r\n");
+}
+
+/**
+* Currently only support 16 hosts connection
+*/
+static char dev_id_to_host_id(int dev_id)
+{
+    // 7138 ==> 1, 7238 ==> 2, 7338 ==> 3
+    return (dev_id > 8) & 0xF;
+}
+
+static int mac_addr_to_host_id(char* mac_addr)
+{
+    return mac_addr[5];
+}
+
+static unsigned long nupa_data_available(int host_id)
+{
+    //TODO: determine if need to process data
+    return 0;
+}
+
+static struct sk_buff * xdma_receive_data(struct xdma_engine* engine, unsigned long length)
+{
+    return NULL;
+}
+
+static void sync_with_peer(struct xdma_engine* engine, int dst_id)
+{
+    //1.Get current head
+
+    //2.
+
+}
+
+void start_dma(void)
+{
+
+}
+
+static void xdma_send_data(struct xdma_engine* engine, struct sk_buff *skb)
+{
+    sync_with_peer(NULL, 0);
+    return;
+}
+
+static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb,
+                                      struct net_device *netdev)
+{
+    char *dest_mac_addr_p;
+    char *src_mac_addr_p;
+    int dst_id, this_id;
+    struct nupanet_adapter *adapter;
+
+	NUPA_DEBUG("nupanet_xmit_frame\r\n");
+
+    adapter = netdev_priv(netdev);
+
+    dest_mac_addr_p = (char *)skb->data;
+    src_mac_addr_p = (char *)skb->data + ETH_ALEN;
+
+    NUPA_DEBUG("DEST: %x:%x:%x:%x:%x:%x\r\n",dest_mac_addr_p[0],dest_mac_addr_p[1],dest_mac_addr_p[2], dest_mac_addr_p[3],dest_mac_addr_p[4],dest_mac_addr_p[5]);
+    NUPA_DEBUG("SRC: %x:%x:%x:%x:%x:%x\r\n",src_mac_addr_p[0],src_mac_addr_p[1],src_mac_addr_p[2], src_mac_addr_p[3],src_mac_addr_p[4],src_mac_addr_p[5]);
+
+    // if (is_broadcast_ether_addr(dest_mac_addr_p) || is_multicast_ether_addr(dest_mac_addr_p)) {
+    //     printk("[Error] broadcast and multicast currently not supported ,will support later\r\n");
+    //     return NET_XMIT_DROP;
+    // }
+    // should we check dest mac is online or not?
+    // later, we should read reg to get current host ID
+    dst_id = mac_addr_to_host_id(dest_mac_addr_p);
+    this_id = mac_addr_to_host_id(src_mac_addr_p);
+
+
+    NUPA_DEBUG("[XMIT] skb->len = %d , skb_headlen(skb) = %d", skb->len,skb_headlen(skb));
+    xdma_send_data(&adapter->xdev->engine_h2c[0], skb);
+
+    //2. free skb
+    dev_kfree_skb(skb);
+    NUPA_DEBUG("[XMIT]free skb done\r\n");
+    return NETDEV_TX_OK;
+}
+
+static int nupanet_set_mac(struct net_device *netdev, void *p)
+{
+    char mac_addr[ETH_ALEN];
+	char default_mac[ETH_ALEN] = NUPANET_DEFAULT_BASE_MAC_ADDR;
+    // Get Device ID, generate MAC according to Device ID
+    // Change to reg version later 
+    struct pci_dev *pdev = to_pci_dev(netdev->dev.parent);
+    int dev_id = pci_dev_id(pdev);
+	NUPA_DEBUG("nupanet_set_mac, dev_id = %#x \r\n", dev_id);
+	memcpy(mac_addr, default_mac, ETH_ALEN);
+    mac_addr[5] = dev_id_to_host_id(dev_id);
+    // Set MAC address
+    netdev->dev_addr = mac_addr;
+	NUPA_DEBUG("nupanet_set_mac done\r\n");
+    return 0;
+}
+
+static void nupanet_tx_timeout(struct net_device *dev,
+		unsigned int txqueue)
+{
+    NUPA_DEBUG("nupanet_tx_timeout\r\n");
+}
+
+static int nupanet_change_mtu(struct net_device *dev, int new_mtu)
+{
+	NUPA_DEBUG("nupanet_change_mtu , change to %d,\r\n", new_mtu);
+	return 0;
+}
+
+static int nupanet_validate_addr(struct net_device *dev)
+{
+    NUPA_DEBUG("nupanet_validate_addr\r\n");
+	return 0;
+}
+
+static int nupanet_eth_ioctl(struct net_device *dev,
+		 struct ifreq *ifr, int cmd)
+{
+    NUPA_DEBUG("nupanet_eth_ioctl, cmd = %d\r\n", cmd);
+	return 0;
+}
+
+#ifdef CONFIG_NET_POLL_CONTROLLER
+/* Polling 'interrupt' - used by things like netconsole to send skbs
+ * without having to re-enable interrupts. It's not called while
+ * the interrupt routine is executing.
+ */
+static void nupanet_netpoll(struct net_device *netdev)
+{
+}
+#endif
+
+static const struct net_device_ops nupanet_netdev_ops = {
+    .ndo_open = nupanet_open,
+    .ndo_stop = nupanet_close,
+    .ndo_start_xmit = nupanet_xmit_frame,
+    .ndo_set_rx_mode = nupanet_set_rx_mode,
+    .ndo_set_mac_address	= nupanet_set_mac,
+    .ndo_tx_timeout		= nupanet_tx_timeout,
+    .ndo_change_mtu		= nupanet_change_mtu,
+    .ndo_eth_ioctl		= nupanet_eth_ioctl,
+    .ndo_validate_addr	= nupanet_validate_addr,
+#ifdef CONFIG_NET_POLL_CONTROLLER
+    .ndo_poll_controller	= nupanet_netpoll,
+#endif
+};
+
+static int nupanet_poll(struct napi_struct *napi, int budget)
+{
+	NUPA_DEBUG("nupanet_poll\r\n");
+    struct sk_buff *skb;
+    int work_done = 0;
+    gro_result_t gro_ret;
+    struct nupanet_adapter* adapter;
+    unsigned long length = 0;
+    int host_id;
+    adapter = container_of(napi, struct nupanet_adapter, napi);
+    host_id = adapter->host_id;
+    while(1) {
+        //TODO:check if need to process packet
+        if((length = nupa_data_available(host_id))) {
+            skb = xdma_receive_data(&adapter->xdev->engine_c2h[0], length);
+            if(!skb) {
+                break;
+            }
+        } else {
+            break;
+        }
+        skb->protocol = eth_type_trans(skb, napi->dev);
+        gro_ret = napi_gro_receive(napi, skb);
+
+        if(++work_done > budget) {
+            break;
+        }
+    }
+    return 0;
+}
+
 static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	int rv = 0;
@@ -91,6 +284,7 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	}
 
     netdev = adapter->netdev;
+	SET_NETDEV_DEV(netdev, &pdev->dev);
 
 
 	hndl = xdma_device_open(DRV_MODULE_NAME, pdev, &adapter->user_max, &adapter->h2c_channel_max, &adapter->c2h_channel_max);
@@ -151,6 +345,24 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 #if HAS_DEBUG_CHAR_DEV
 	create_debug_cdev(&adapter->debug);
 #endif
+
+	adapter->shm_info.vaddr = pci_ioremap_wc_bar(pdev, SHARING_BAR);
+    adapter->shm_info.length = pci_resource_len(pdev, SHARING_BAR);
+
+	NUPA_DEBUG("XDMA Init Done \r\n");
+    netdev->netdev_ops = &nupanet_netdev_ops;
+
+	NUPA_DEBUG("set mac and name \r\n");
+	nupanet_set_mac(netdev, NULL);
+	strcpy(netdev->name, "nupa_net%d");
+	NUPA_DEBUG("netif_napi_add \r\n");
+    netif_napi_add(netdev, &adapter->napi, nupanet_poll, 64);
+
+    err = register_netdev(netdev);
+    NUPA_DEBUG("register_netdev Done , err = %d\r\n", err);
+	if (err)
+		goto err_out;
+
 	dev_set_drvdata(&pdev->dev, adapter);
 
 	return 0;

@@ -84,8 +84,13 @@
 #define MAGIC_BITSTREAM 0xBBBBBBBBUL
 
 #define HAS_DEBUG_CHAR_DEV       1
+#define NUPANET_DEFAULT_BASE_MAC_ADDR {0xFC, 0xAF, 0xAC, 0x00, 0x00, 0x00}
 
-/* XDMA PCIe device specific book-keeping */
+struct pci_shm_info {
+	char __iomem* vaddr;
+	int length;
+};
+
 struct nupanet_adapter {
 	unsigned long magic;		/* structure ID for sanity checks */
 	struct pci_dev *pdev;	/* pci device struct from probe() */
@@ -97,7 +102,11 @@ struct nupanet_adapter {
 	int h2c_channel_max;
 	unsigned int flags;
 
+	struct pci_shm_info shm_info;
+
 	struct net_device *netdev;
+	struct napi_struct napi;
+	int host_id;
 #if HAS_DEBUG_CHAR_DEV
 	struct debug_cdev debug;
 #endif
