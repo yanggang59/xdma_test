@@ -15,7 +15,7 @@
 #include <linux/sched.h>
 #include <linux/wait.h>
 #include "debug.h"
-#include "nupanet.h"
+#include "nupanet_main.h"
 #include "libxdma_api.h"
 
 void free_resource(struct debug_cdev* debug)
@@ -32,14 +32,14 @@ void free_resource(struct debug_cdev* debug)
 void dump_buf(char* buf, int len)
 {
 	int i,j;
-  printk("**************************************************************************************\r\n");
-  printk("     ");
-  for(i = 0; i < 16; i++) 
-    printk("%4X ", i);
+    printk("**************************************************************************************\r\n");
+    printk("     ");
+    for(i = 0; i < 16; i++) 
+        printk("%4X ", i);
 
-  for(j = 0; j < len; j++) {
-    if(j % 16 == 0) {
-      printk("\n%4X ", j);
+    for(j = 0; j < len; j++) {
+    	if(j % 16 == 0) {
+      	printk("\n%4X ", j);
     }
     printk("%4X ", buf[j]);
   }
@@ -199,7 +199,6 @@ static ssize_t debug_write(struct file *file, const char *src, size_t count, lof
 #endif
 }
 
-/* Global structures */
 static struct file_operations debug_fops = {
 	.owner = THIS_MODULE,
 	.open = debug_open,

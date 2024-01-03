@@ -7,7 +7,7 @@
 /* include early, to verify it depends only on the headers above */
 #include "libxdma_api.h"
 #include "libxdma.h"
-#include "nupanet.h"
+#include "nupanet_main.h"
 
 #define DRV_MODULE_NAME          "nupanet"
 #undef DEBUG_THIS_MODULE

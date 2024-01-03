@@ -18,7 +18,7 @@ $(warning XVC_FLAGS: $(XVC_FLAGS).)
 
 topdir := $(shell cd $(src)/.. && pwd)
 
-TARGET_MODULE:=nupa_net
+TARGET_MODULE:=nupanet
 
 EXTRA_CFLAGS := -I$(topdir)/include $(XVC_FLAGS)
 ifeq ($(DEBUG),1)
@@ -30,7 +30,7 @@ endif
 #EXTRA_CFLAGS += -DINTERNAL_TESTING
 
 ifneq ($(KERNELRELEASE),)
-	$(TARGET_MODULE)-objs := libxdma.o nupanet.o xdma_thread.o debug.o
+	$(TARGET_MODULE)-objs := libxdma.o nupanet_main.o xdma_thread.o debug.o
 	obj-m := $(TARGET_MODULE).o
 else
 	BUILDSYSTEM_DIR:=/lib/modules/$(shell uname -r)/build
