@@ -45,17 +45,22 @@ static void adapter_free(struct nupanet_adapter *adapter)
 	struct xdma_dev *xdev = adapter->xdev;
 
 	pr_info("adapter 0x%p, destroy_interfaces, xdev 0x%p.\n", adapter, xdev);
-	//adapter_destroy_interfaces(adapter);
 	adapter->xdev = NULL;
 	pr_info("adapter 0x%p, xdev 0x%p xdma_device_close.\n", adapter, xdev);
 	xdma_device_close(adapter->pdev, xdev);
-	kfree(adapter);
+	free_netdev(adapter->netdev);
 }
 
 static struct nupanet_adapter *adapter_alloc(struct pci_dev *pdev)
 {
-	struct nupanet_adapter *adapter = kmalloc(sizeof(*adapter), GFP_KERNEL);
+	struct nupanet_adapter *adapter;
+	struct net_device *netdev;
 
+	netdev = alloc_etherdev(sizeof(struct nupanet_adapter));
+	if(!netdev)
+		return NULL;
+
+	adapter = netdev_priv(netdev);
 	if (!adapter)
 		return NULL;
 	memset(adapter, 0, sizeof(*adapter));
@@ -65,6 +70,7 @@ static struct nupanet_adapter *adapter_alloc(struct pci_dev *pdev)
 	adapter->user_max = MAX_USER_IRQ;
 	adapter->h2c_channel_max = XDMA_CHANNEL_NUM_MAX;
 	adapter->c2h_channel_max = XDMA_CHANNEL_NUM_MAX;
+	adapter->netdev = netdev;
 
 	return adapter;
 }
@@ -75,33 +81,39 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	struct nupanet_adapter *adapter = NULL;
 	struct xdma_dev *xdev;
 	void *hndl;
+    struct net_device *netdev;
+    int err;
 
 	adapter = adapter_alloc(pdev);
-	if (!adapter)
-		return -ENOMEM;
+	if (!adapter) {
+		err = -ENOMEM;
+		goto err_alloc_etherdev;
+	}
 
-	hndl = xdma_device_open(DRV_MODULE_NAME, pdev, &adapter->user_max,
-			&adapter->h2c_channel_max, &adapter->c2h_channel_max);
+    netdev = adapter->netdev;
+
+
+	hndl = xdma_device_open(DRV_MODULE_NAME, pdev, &adapter->user_max, &adapter->h2c_channel_max, &adapter->c2h_channel_max);
 	if (!hndl) {
-		rv = -EINVAL;
+		err = -EINVAL;
 		goto err_out;
 	}
 
 	if (adapter->user_max > MAX_USER_IRQ) {
 		pr_err("Maximum users limit reached\n");
-		rv = -EINVAL;
+		err = -EINVAL;
 		goto err_out;
 	}
 
 	if (adapter->h2c_channel_max > XDMA_CHANNEL_NUM_MAX) {
 		pr_err("Maximun H2C channel limit reached\n");
-		rv = -EINVAL;
+		err = -EINVAL;
 		goto err_out;
 	}
 
 	if (adapter->c2h_channel_max > XDMA_CHANNEL_NUM_MAX) {
 		pr_err("Maximun C2H channel limit reached\n");
-		rv = -EINVAL;
+		err = -EINVAL;
 		goto err_out;
 	}
 
@@ -111,8 +123,8 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (adapter->user_max) {
 		u32 mask = (1 << (adapter->user_max + 1)) - 1;
 
-		rv = xdma_user_isr_enable(hndl, mask);
-		if (rv)
+		err = xdma_user_isr_enable(hndl, mask);
+		if (err)
 			goto err_out;
 	}
 
@@ -120,13 +132,13 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	xdev = xdev_find_by_pdev(pdev);
 	if (!xdev) {
 		pr_warn("NO xdev found!\n");
-		rv =  -EINVAL;
+		err =  -EINVAL;
 		goto err_out;
 	}
 
 	if (hndl != xdev) {
 		pr_err("xdev handle mismatch\n");
-		rv =  -EINVAL;
+		err =  -EINVAL;
 		goto err_out;
 	}
 
@@ -146,7 +158,8 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 err_out:
 	pr_err("pdev 0x%p, err %d.\n", pdev, rv);
 	adapter_free(adapter);
-	return rv;
+err_alloc_etherdev:
+	return err;
 }
 
 static void remove_one(struct pci_dev *pdev)

@@ -45,6 +45,34 @@
 #include <linux/version.h>
 #include <linux/uio.h>
 #include <linux/spinlock_types.h>
+#include <linux/stddef.h>
+#include <asm/byteorder.h>
+#include <linux/errno.h>
+#include <linux/ioport.h>
+#include <linux/netdevice.h>
+#include <linux/etherdevice.h>
+#include <linux/skbuff.h>
+#include <linux/delay.h>
+#include <linux/timer.h>
+#include <linux/interrupt.h>
+#include <linux/string.h>
+#include <linux/pagemap.h>
+#include <linux/bitops.h>
+#include <asm/io.h>
+#include <asm/irq.h>
+#include <linux/capability.h>
+#include <linux/in.h>
+#include <linux/ip.h>
+#include <linux/ipv6.h>
+#include <linux/tcp.h>
+#include <linux/udp.h>
+#include <net/pkt_sched.h>
+#include <linux/list.h>
+#include <linux/reboot.h>
+#include <net/checksum.h>
+#include <linux/mii.h>
+#include <linux/ethtool.h>
+#include <linux/if_vlan.h>
 
 #include "libxdma.h"
 #include "xdma_thread.h"
@@ -68,6 +96,8 @@ struct nupanet_adapter {
 	int c2h_channel_max;
 	int h2c_channel_max;
 	unsigned int flags;
+
+	struct net_device *netdev;
 #if HAS_DEBUG_CHAR_DEV
 	struct debug_cdev debug;
 #endif
