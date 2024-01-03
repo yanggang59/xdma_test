@@ -37,6 +37,7 @@ static void adapter_free(struct nupanet_adapter *adapter)
 	adapter->xdev = NULL;
 	pr_info("adapter 0x%p, xdev 0x%p xdma_device_close.\n", adapter, xdev);
 	xdma_device_close(adapter->pdev, xdev);
+	kfree(adapter->netdev->dev_addr);
 	free_netdev(adapter->netdev);
 }
 
@@ -148,8 +149,8 @@ static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb,
     dest_mac_addr_p = (char *)skb->data;
     src_mac_addr_p = (char *)skb->data + ETH_ALEN;
 
-    NUPA_DEBUG("DEST: %x:%x:%x:%x:%x:%x\r\n",dest_mac_addr_p[0],dest_mac_addr_p[1],dest_mac_addr_p[2], dest_mac_addr_p[3],dest_mac_addr_p[4],dest_mac_addr_p[5]);
-    NUPA_DEBUG("SRC: %x:%x:%x:%x:%x:%x\r\n",src_mac_addr_p[0],src_mac_addr_p[1],src_mac_addr_p[2], src_mac_addr_p[3],src_mac_addr_p[4],src_mac_addr_p[5]);
+    NUPA_DEBUG("DEST: %x:%x:%x:%x:%x:%x\r\n",dest_mac_addr_p[0] & 0xFF,dest_mac_addr_p[1] & 0xFF,dest_mac_addr_p[2] & 0xFF, dest_mac_addr_p[3] & 0xFF,dest_mac_addr_p[4] & 0xFF,dest_mac_addr_p[5] & 0xFF);
+    NUPA_DEBUG("SRC: %x:%x:%x:%x:%x:%x\r\n",src_mac_addr_p[0] & 0xFF,src_mac_addr_p[1] & 0xFF,src_mac_addr_p[2] & 0xFF, src_mac_addr_p[3] & 0xFF,src_mac_addr_p[4] & 0xFF,src_mac_addr_p[5] & 0xFF);
 
     // if (is_broadcast_ether_addr(dest_mac_addr_p) || is_multicast_ether_addr(dest_mac_addr_p)) {
     //     printk("[Error] broadcast and multicast currently not supported ,will support later\r\n");
@@ -172,19 +173,21 @@ static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb,
 
 static int nupanet_set_mac(struct net_device *netdev, void *p)
 {
-    char mac_addr[ETH_ALEN];
+	int host_id;
+    char* mac_addr = kmalloc(ETH_ALEN, GFP_KERNEL);
 	char default_mac[ETH_ALEN] = NUPANET_DEFAULT_BASE_MAC_ADDR;
     // Get Device ID, generate MAC according to Device ID
     // Change to reg version later 
     struct pci_dev *pdev = to_pci_dev(netdev->dev.parent);
     int dev_id = pdev->device;
-	NUPA_DEBUG("nupanet_set_mac, dev_id = %#x \r\n", dev_id);
 	memcpy(mac_addr, default_mac, ETH_ALEN);
+	host_id = (int)dev_id_to_host_id(dev_id);
+	NUPA_DEBUG("nupanet_set_mac, dev_id = %#x , host_id = %d\r\n", dev_id, host_id);
     mac_addr[5] = dev_id_to_host_id(dev_id);
     // Set MAC address
     netdev->dev_addr = mac_addr;
 	NUPA_DEBUG("nupanet_set_mac done\r\n");
-    return 0;
+	return 0;
 }
 
 static void nupanet_tx_timeout(struct net_device *dev, unsigned int txqueue)
