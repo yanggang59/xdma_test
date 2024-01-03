@@ -244,14 +244,14 @@ static const struct net_device_ops nupanet_netdev_ops = {
 
 static int nupanet_poll(struct napi_struct *napi, int budget)
 {
-	NUPA_DEBUG("nupanet_poll\r\n");
     struct sk_buff *skb;
     int work_done = 0;
     gro_result_t gro_ret;
     struct nupanet_adapter* adapter;
     unsigned long length = 0;
     int host_id;
-    adapter = container_of(napi, struct nupanet_adapter, napi);
+    NUPA_DEBUG("nupanet_poll\r\n");
+	adapter = container_of(napi, struct nupanet_adapter, napi);
     host_id = adapter->host_id;
     while(1) {
         //TODO:check if need to process packet

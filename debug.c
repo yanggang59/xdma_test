@@ -87,10 +87,8 @@ static int dma_write_test(struct debug_cdev* debug, int pos, char* buf, int leng
 	}
 
 	res = xdma_xfer_submit(xdev, engine->channel, 1, pos, sgt, dma_mapped, 0);
-
 out:
 	kfree(sgt);
-	kfree(buf);
 	return res;
 }
 
@@ -138,7 +136,6 @@ static int dma_read_test(struct debug_cdev* debug, int pos, char* buf, int lengt
 
 out:
 	kfree(sgt);
-	kfree(buf);
 	return res;
 }
 
