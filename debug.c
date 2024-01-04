@@ -58,7 +58,7 @@ static int dma_write_test(struct debug_cdev* debug, int pos, char* buf, int leng
 	struct scatterlist *sg;
 	unsigned int pages_nr;
 	struct sg_table *sgt;
-	printk("[DEBUG] dma write test \r\n");
+	NUPA_DEBUG("dma write test \r\n");
 	sgt = kzalloc(sizeof(struct sg_table), GFP_KERNEL);
 
 	adapter = container_of(debug, struct nupanet_adapter, debug);
@@ -72,7 +72,7 @@ static int dma_write_test(struct debug_cdev* debug, int pos, char* buf, int leng
 		return -EINVAL;
 
 	if (sg_alloc_table(sgt, pages_nr, GFP_KERNEL)) {
-		pr_err("sgl OOM.\n");
+		NUPA_ERROR("sgl OOM.\n");
 		res = -ENOMEM;
 		goto out;
 	}
@@ -104,7 +104,7 @@ static int dma_read_test(struct debug_cdev* debug, int pos, char* buf, int lengt
 	struct scatterlist *sg;
 	unsigned int pages_nr;
 	struct sg_table *sgt;
-	printk("[DEBUG] dma read test \r\n");
+	NUPA_DEBUG("dma read test \r\n");
 	sgt = kzalloc(sizeof(struct sg_table), GFP_KERNEL);
 
 	adapter = container_of(debug, struct nupanet_adapter, debug);
@@ -118,7 +118,7 @@ static int dma_read_test(struct debug_cdev* debug, int pos, char* buf, int lengt
 		return -EINVAL;
 
 	if (sg_alloc_table(sgt, pages_nr, GFP_KERNEL)) {
-		pr_err("sgl OOM.\n");
+		NUPA_ERROR("sgl OOM.\n");
 		res = -ENOMEM;
 		goto out;
 	}
@@ -169,7 +169,7 @@ static ssize_t debug_read(struct file *file, char *dst, size_t count, loff_t *f_
 	int length = 4096;
 	int pos = 0;
 	char* buf = kmalloc(length, GFP_KERNEL);
-	printk("[DEBUG] dma read \r\n");
+	NUPA_DEBUG("dma read \r\n");
 	dma_read_test(debug, pos, buf, length);
 	dump_buf(buf, length);
 	kfree(buf);
@@ -191,7 +191,7 @@ static ssize_t debug_write(struct file *file, const char *src, size_t count, lof
 	int length = 4096;
 	int pos = 0;
 	char* buf = kmalloc(length, GFP_KERNEL);
-	printk("[DEBUG] dma write \r\n");
+	NUPA_DEBUG("dma write \r\n");
 	memset(buf, 'X', length);
 	dma_write_test(debug, pos, buf, length);
 	kfree(buf);

@@ -10,13 +10,6 @@
 #include "nupanet_main.h"
 
 #define DRV_MODULE_NAME          "nupanet"
-#undef DEBUG_THIS_MODULE
-#define DEBUG_THIS_MODULE          1
-#if DEBUG_THIS_MODULE
-#define NUPA_DEBUG(fmt,...)             printk("[NUPA DEBUG] "fmt, ##__VA_ARGS__)
-#else
-#define NUPA_DEBUG(fmt,...)
-#endif
 
 MODULE_AUTHOR("Clussys, Inc.");
 MODULE_LICENSE("Dual BSD/GPL");
@@ -123,15 +116,58 @@ static void sync_with_peer(struct xdma_engine* engine, int dst_id)
 
 }
 
-void start_dma(void)
+static int xdma_send_data(struct xdma_engine* engine, struct sk_buff *skb, int pos)
 {
+	int res, i;
+	char* buf;
+	struct xdma_dev *xdev;
+	struct scatterlist *sg;
+	unsigned int pages_nr;
+	struct sg_table *sgt;
+	int length;
+	length = skb_headlen(skb);
+	NUPA_DEBUG("xdma_send_data , pos = %d , length = %d\r\n", pos, length);
+	if(length > PAGE_SIZE) {
+		NUPA_ERROR("skb linear length to big \r\n");
+		res = -EINVAL;
+		return res;
+	}
+	sgt = kzalloc(sizeof(struct sg_table), GFP_KERNEL);
+	xdev = engine->xdev;
+	buf = kzalloc(length, GFP_KERNEL);
+	memcpy(buf, skb->data, length);
 
+	pages_nr = (((unsigned long)buf + length + PAGE_SIZE - 1) - ((unsigned long)buf & PAGE_MASK)) >> PAGE_SHIFT;
+	if (pages_nr == 0) {
+		NUPA_ERROR("page_nr = %d \r\n", pages_nr);
+		res = -EINVAL;
+		goto out;
+	}
+
+	if (sg_alloc_table(sgt, pages_nr, GFP_KERNEL)) {
+		NUPA_ERROR("sgl OOM.\n");
+		res = -ENOMEM;
+		goto out;
+	}
+	sg = &sgt->sgl[0];
+	for (i = 0; i < pages_nr; i++) {
+		unsigned int offset = offset_in_page(buf);
+		unsigned int nbytes = min_t(unsigned int, PAGE_SIZE - offset, length);
+		sg_set_buf(sg, buf, nbytes);
+		buf += nbytes;
+		length -= nbytes;
+		sg = sg_next(sg);
+	}
+	res = xdma_xfer_submit(xdev, engine->channel, 1, pos, sgt, false, 0);
+    sync_with_peer(NULL, 0);
+	kfree(buf);
+out:
+    return res;
 }
 
-static void xdma_send_data(struct xdma_engine* engine, struct sk_buff *skb)
+static bool mac_addr_valid(char* mac_addr)
 {
-    sync_with_peer(NULL, 0);
-    return;
+	return true;
 }
 
 static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb,
@@ -141,6 +177,7 @@ static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb,
     char *src_mac_addr_p;
     int dst_id, this_id;
     struct nupanet_adapter *adapter;
+	int pos;
 
 	NUPA_DEBUG("nupanet_xmit_frame\r\n");
 
@@ -149,8 +186,8 @@ static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb,
     dest_mac_addr_p = (char *)skb->data;
     src_mac_addr_p = (char *)skb->data + ETH_ALEN;
 
-    NUPA_DEBUG("DEST: %x:%x:%x:%x:%x:%x\r\n",dest_mac_addr_p[0] & 0xFF,dest_mac_addr_p[1] & 0xFF,dest_mac_addr_p[2] & 0xFF, dest_mac_addr_p[3] & 0xFF,dest_mac_addr_p[4] & 0xFF,dest_mac_addr_p[5] & 0xFF);
-    NUPA_DEBUG("SRC: %x:%x:%x:%x:%x:%x\r\n",src_mac_addr_p[0] & 0xFF,src_mac_addr_p[1] & 0xFF,src_mac_addr_p[2] & 0xFF, src_mac_addr_p[3] & 0xFF,src_mac_addr_p[4] & 0xFF,src_mac_addr_p[5] & 0xFF);
+    NUPA_DEBUG("DEST: %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\r\n",dest_mac_addr_p[0] & 0xFF,dest_mac_addr_p[1] & 0xFF,dest_mac_addr_p[2] & 0xFF, dest_mac_addr_p[3] & 0xFF,dest_mac_addr_p[4] & 0xFF,dest_mac_addr_p[5] & 0xFF);
+    NUPA_DEBUG("SRC: %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\r\n",src_mac_addr_p[0] & 0xFF,src_mac_addr_p[1] & 0xFF,src_mac_addr_p[2] & 0xFF, src_mac_addr_p[3] & 0xFF,src_mac_addr_p[4] & 0xFF,src_mac_addr_p[5] & 0xFF);
 
     // if (is_broadcast_ether_addr(dest_mac_addr_p) || is_multicast_ether_addr(dest_mac_addr_p)) {
     //     printk("[Error] broadcast and multicast currently not supported ,will support later\r\n");
@@ -161,9 +198,19 @@ static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb,
     dst_id = mac_addr_to_host_id(dest_mac_addr_p);
     this_id = mac_addr_to_host_id(src_mac_addr_p);
 
+	if((!mac_addr_valid(src_mac_addr_p)) || (!mac_addr_valid(dest_mac_addr_p))) {
+		NUPA_DEBUG("Address Not Valid \r\n");
+		return NETDEV_TX_BUSY;
+	}
+
 
     NUPA_DEBUG("[XMIT] skb->len = %d , skb_headlen(skb) = %d", skb->len,skb_headlen(skb));
-    xdma_send_data(&adapter->xdev->engine_h2c[0], skb);
+	
+	pos = 0;
+	
+	return 0;
+
+    xdma_send_data(&adapter->xdev->engine_h2c[0], skb, pos);
 
     //2. free skb
     dev_kfree_skb(skb);
