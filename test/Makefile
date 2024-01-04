@@ -7,6 +7,6 @@ OBJ = $(patsubst %.c,$(OUTPUTDIR)/%.o,$(notdir $(SRC)))
 TARGET = $(patsubst %.c,$(OUTPUTDIR)/%,$(notdir $(SRC)))
  
 $(TARGET):$(SRC)
-	$(CC) -c $< -o $@
+	$(CC) $< -o $@
 clean:
 	rm -f $(TARGET)

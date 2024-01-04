@@ -24,8 +24,10 @@ MODULE_DEVICE_TABLE(pci, pci_ids);
 
 static void adapter_free(struct nupanet_adapter *adapter)
 {
-	struct xdma_dev *xdev = adapter->xdev;
+	struct xdma_dev *xdev;
 	struct napi_struct *napi;
+
+	xdev = adapter->xdev;
 	pr_info("adapter 0x%p, destroy_interfaces, xdev 0x%p.\n", adapter, xdev);
 	adapter->xdev = NULL;
 	napi = &adapter->napi;
@@ -65,14 +67,12 @@ static struct nupanet_adapter *adapter_alloc(struct pci_dev *pdev)
 int nupanet_open(struct net_device *dev)
 {
     printk("nupanet_open called\n");
-    //netif_start_queue(dev);
     return 0;
 }
 
 int nupanet_release(struct net_device *dev)
 {
     printk("nupanet_release called\n");
-    //netif_stop_queue(dev);
     return 0;
 }
 
@@ -107,11 +107,6 @@ static unsigned long nupa_data_available(int host_id)
     return 0;
 }
 
-static struct sk_buff * xdma_receive_data(struct xdma_engine* engine, unsigned long length)
-{
-    return NULL;
-}
-
 static void nupa_notify_data_available(struct xdma_engine* engine, int dst_id)
 {
     //1.Get current head
@@ -120,34 +115,30 @@ static void nupa_notify_data_available(struct xdma_engine* engine, int dst_id)
 
 }
 
-static int xdma_send_data(struct xdma_engine* engine, struct sk_buff *skb, int pos)
+static int xdma_transfer_data(struct xdma_engine* engine, struct sk_buff *skb, int pos, int length, char* buf, bool is_write)
 {
 	int res, i;
-	char* buf;
 	struct xdma_dev *xdev;
 	struct scatterlist *sg;
 	unsigned int pages_nr;
 	struct sg_table *sgt;
-	int length;
-	length = skb_headlen(skb);
-	NUPA_DEBUG("xdma_send_data , pos = %d , length = %d\r\n", pos, length);
+
+	NUPA_DEBUG("xdma_transfer_data , pos = %d , length = %d\r\n", pos, length);
 	if(length > PAGE_SIZE) {
-		NUPA_ERROR("skb linear length to big \r\n");
+		NUPA_ERROR("skb linear length too big , length = %d \r\n", length);
 		res = -EINVAL;
 		return res;
 	}
 	sgt = kzalloc(sizeof(struct sg_table), GFP_KERNEL);
 	xdev = engine->xdev;
-	buf = kzalloc(length, GFP_KERNEL);
-	memcpy(buf, skb->data, length);
-
+	if(is_write)
+		memcpy(buf, skb->data, length);
 	pages_nr = (((unsigned long)buf + length + PAGE_SIZE - 1) - ((unsigned long)buf & PAGE_MASK)) >> PAGE_SHIFT;
 	if (pages_nr == 0) {
 		NUPA_ERROR("page_nr = %d \r\n", pages_nr);
 		res = -EINVAL;
 		goto out;
 	}
-
 	if (sg_alloc_table(sgt, pages_nr, GFP_KERNEL)) {
 		NUPA_ERROR("sgl OOM.\n");
 		res = -ENOMEM;
@@ -162,10 +153,47 @@ static int xdma_send_data(struct xdma_engine* engine, struct sk_buff *skb, int p
 		length -= nbytes;
 		sg = sg_next(sg);
 	}
-	res = xdma_xfer_submit(xdev, engine->channel, 1, pos, sgt, false, 0);
-	kfree(buf);
+	res = xdma_xfer_submit(xdev, engine->channel, is_write, pos, sgt, false, 0);
+	if(is_write) {
+		NUPA_DEBUG("write: transferred %d \r\n", res);
+	} else {
+		NUPA_DEBUG("read: transferred %d \r\n", res);
+	}
 out:
     return res;
+}
+
+static struct sk_buff * xdma_receive_data(struct nupanet_adapter* adapter, int pos, int length)
+{
+	int res;
+	char* data;
+	struct xdma_engine* engine;
+	struct sk_buff *skb;
+
+	engine = &adapter->xdev->engine_c2h[0];
+	skb = napi_alloc_skb(&adapter->napi, length);
+
+	//do we really need to allocate data here?
+	data = kmalloc(length, GFP_KERNEL);
+	if(!data) {
+		NUPA_ERROR("allocate buf failed \r\n");
+		return NULL;
+	}
+	res = xdma_transfer_data(engine, skb, pos, length, data, false);
+	if(res == length) {
+		skb_put_data(skb, data, length);
+	}
+	else {
+		skb = NULL;
+		NUPA_ERROR("dma read res = %d, expect %d\r\n", res, length);
+	}
+	kfree(data);
+	return skb;
+}
+
+static int xdma_send_data(struct xdma_engine* engine, struct sk_buff *skb, int pos, int length, char* buf)
+{
+	return xdma_transfer_data(engine, skb, pos, length, buf, true);
 }
 
 static bool mac_addr_valid(char* mac_addr)
@@ -180,7 +208,8 @@ static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb,
     char *src_mac_addr_p;
     int dst_id, this_id;
     struct nupanet_adapter *adapter;
-	int pos;
+	int pos, length;
+	char* buf;
 
 	NUPA_DEBUG("nupanet_xmit_frame\r\n");
 
@@ -213,14 +242,18 @@ static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb,
 		return NETDEV_TX_BUSY;
 	}
 
-
     NUPA_DEBUG("[XMIT] skb->len = %d , skb_headlen(skb) = %d", skb->len,skb_headlen(skb));
 	
 	pos = 0;
+	length = 0;
 	
 	return 0;
+	//do we really need to allocate data here?
+	buf = kmalloc(length, GFP_KERNEL);
 
-    xdma_send_data(&adapter->xdev->engine_h2c[0], skb, pos);
+    xdma_send_data(&adapter->xdev->engine_h2c[0], skb, pos, length, buf);
+
+	kfree(buf);
 
 	//notify buddy, change to interrupt mechanism later 
 	nupa_notify_data_available(NULL, dst_id);
@@ -310,7 +343,8 @@ static int nupanet_poll(struct napi_struct *napi, int budget)
     int work_done = 0;
     gro_result_t gro_ret;
     struct nupanet_adapter* adapter;
-    unsigned long length = 0;
+    int length = 0;
+	int pos = 0;
     int host_id;
     NUPA_DEBUG("nupanet_poll\r\n");
 	adapter = container_of(napi, struct nupanet_adapter, napi);
@@ -318,7 +352,7 @@ static int nupanet_poll(struct napi_struct *napi, int budget)
     while(1) {
         //TODO:check if need to process packet
         if((length = nupa_data_available(host_id))) {
-            skb = xdma_receive_data(&adapter->xdev->engine_c2h[0], length);
+            skb = xdma_receive_data(adapter, pos, length);
             if(!skb) {
                 break;
             }
@@ -338,7 +372,7 @@ static int nupanet_poll(struct napi_struct *napi, int budget)
 static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	int rv = 0;
-	struct nupanet_adapter *adapter = NULL;
+	struct nupanet_adapter *adapter;
 	struct xdma_dev *xdev;
 	void *hndl;
     struct net_device *netdev;

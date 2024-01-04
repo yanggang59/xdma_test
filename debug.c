@@ -29,24 +29,6 @@ void free_resource(struct debug_cdev* debug)
 	}
 }
 
-void dump_buf(char* buf, int len)
-{
-	int i,j;
-    printk("**************************************************************************************\r\n");
-    printk("     ");
-    for(i = 0; i < 16; i++) 
-        printk("%4X ", i);
-
-    for(j = 0; j < len; j++) {
-    	if(j % 16 == 0) {
-      	printk("\n%4X ", j);
-    }
-    printk("%4X ", buf[j]);
-  }
-
-  printk("\n**************************************************************************************\r\n");
-}
-
 static int dma_to_device(struct debug_cdev* debug, int pos, char* buf, int length)
 {
 	int res;
@@ -103,7 +85,7 @@ static int dma_from_device(struct debug_cdev* debug, int pos, char* buf, int len
 	struct scatterlist *sg;
 	unsigned int pages_nr;
 	struct sg_table *sgt;
-	NUPA_DEBUG("dma read test \r\n");
+	NUPA_DEBUG("dma_from_device \r\n");
 	sgt = kzalloc(sizeof(struct sg_table), GFP_KERNEL);
 
 	adapter = container_of(debug, struct nupanet_adapter, debug);
@@ -158,10 +140,11 @@ static void do_raw_read_test(struct file *file)
 	struct debug_cdev *debug = (struct debug_cdev *)file->private_data;
 	int length = 4096;
 	int pos = 0;
+	int res;
 	char* buf = kmalloc(length, GFP_KERNEL);
-	NUPA_DEBUG("dma read \r\n");
-	dma_from_device(debug, pos, buf, length);
-	dump_buf(buf, length);
+	NUPA_DEBUG("dma raw read \r\n");
+	res = dma_from_device(debug, pos, buf, length);
+	NUPA_DEBUG("dma raw read done , res = %d \r\n", res);
 	kfree(buf);
 }
 
@@ -170,41 +153,47 @@ static void do_raw_write_test(struct file *file, char content)
 	struct debug_cdev *debug = (struct debug_cdev *)file->private_data;
 	int length = 4096;
 	int pos = 0;
+	int res;
 	char* buf = kmalloc(length, GFP_KERNEL);
-	NUPA_DEBUG("dma write \r\n");
+	NUPA_DEBUG("dma raw write \r\n");
 	memset(buf, content, length);
-	dma_to_device(debug, pos, buf, length);
+	res = dma_to_device(debug, pos, buf, length);
+	NUPA_DEBUG("dma raw write done , res = %d \r\n", res);
 	kfree(buf);
 }
 
 
 static ssize_t debug_read(struct file *file, char *dst, size_t count, loff_t *f_offset) 
 {
+	int res;
 	struct debug_cdev *debug = (struct debug_cdev *)file->private_data;
-	NUPA_DEBUG("dma read: count = %ld, offset = %lld \r\n", count, *f_offset);
+	NUPA_DEBUG("debug_read: count = %ld, offset = %lld \r\n", count, *f_offset);
 	if(*f_offset + count > debug->buf_size) {
 		NUPA_ERROR("over read debug file\r\n");
 		return -EINVAL;
 	}
-	dma_from_device(debug, *f_offset, debug->buf, count);
+	res = dma_from_device(debug, *f_offset, debug->buf, count);
 	if(copy_to_user(dst, debug->buf + *f_offset, count))
 		return -EFAULT;
 	*f_offset += count;
+	NUPA_DEBUG("debug_read done : count = %ld, offset = %lld , res = %d \r\n", count, *f_offset, res);
 	return count;
 }
 
 static ssize_t debug_write(struct file *file, const char *src, size_t count, loff_t *f_offset) 
 {
+	int res;
 	struct debug_cdev *debug = (struct debug_cdev *)file->private_data;
-	NUPA_DEBUG("dma write: count = %ld, offset = %lld \r\n", count, *f_offset);
+	NUPA_DEBUG("debug_write: count = %ld, offset = %lld \r\n", count, *f_offset);
 	if(*f_offset + count > debug->buf_size) {
 		NUPA_ERROR("over write debug file\r\n");
 		return -EINVAL;
 	}
 	if (copy_from_user(debug->buf, src, count) != 0)
 		return -EFAULT;
-	dma_to_device(debug, *f_offset, debug->buf, count);
+	res = dma_to_device(debug, *f_offset, debug->buf, count);
 	*f_offset += count;
+	NUPA_DEBUG("debug_write done : count = %ld, offset = %lld , res = %d \r\n", count, *f_offset, res);
 	return count;
 }
 
@@ -214,11 +203,11 @@ static long debug_ioctl (struct file *file, unsigned int cmd, unsigned long arg)
 	NUPA_DEBUG("debug_ioctl , cmd = %#x, arg = %#lx\r\n", cmd, arg);
 	switch(cmd)
 	{
-		case IOCTL_WRITE:
+		case IOCTL_RAW_WRITE:
 			NUPA_DEBUG("debug_ioctl raw write test \r\n");
 			do_raw_write_test(file, 'X');
 			break;
-		case IOCTL_READ:
+		case IOCTL_RAW_READ:
 			NUPA_DEBUG("debug_ioctl raw read test \r\n");
 			do_raw_read_test(file);
 			break;

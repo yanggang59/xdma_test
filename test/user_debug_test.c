@@ -5,8 +5,13 @@
 #include <sys/mman.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/ioctl.h>
 
 #define DBG_CHAR_DEV "/dev/debug"
+
+#define IOCTL_MAGIC                   ('D')
+#define IOCTL_RAW_WRITE               _IO(IOCTL_MAGIC, 1)
+#define IOCTL_RAW_READ                _IO(IOCTL_MAGIC, 2)
 
 void dump_buf(char* buf, int len)
 {
@@ -22,6 +27,20 @@ void dump_buf(char* buf, int len)
     printf("%4X ", buf[j]);
   }
   printf("\n************************************ DUMP BUF END **************************************************\r\n");
+}
+
+
+static void simple_io_test(void)
+{
+	int fd, ret;
+    fd = open(DBG_CHAR_DEV, O_RDWR);
+	if(fd < 0) {
+        fprintf(stderr, "open 2: %s\n", strerror(errno));
+        exit(-1);
+    }
+	ret = ioctl(fd, IOCTL_RAW_WRITE, NULL);
+	ret = ioctl(fd, IOCTL_RAW_READ, NULL);
+
 }
 
 int main()
@@ -51,5 +70,6 @@ int main()
     read(fd, buf, length);
     dump_buf(buf, length);
     close(fd);
+	simple_io_test();
     return 0;
 }

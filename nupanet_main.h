@@ -78,19 +78,19 @@
 #include "xdma_thread.h"
 #include "debug.h"
 
-#define MAGIC_ENGINE    0xEEEEEEEEUL
-#define MAGIC_DEVICE    0xDDDDDDDDUL
-#define MAGIC_CHAR      0xCCCCCCCCUL
-#define MAGIC_BITSTREAM 0xBBBBBBBBUL
+#define MAGIC_ENGINE                      0xEEEEEEEEUL
+#define MAGIC_DEVICE                      0xDDDDDDDDUL
+#define MAGIC_CHAR                        0xCCCCCCCCUL
+#define MAGIC_BITSTREAM                   0xBBBBBBBBUL
 
-#define HAS_DEBUG_CHAR_DEV       1
-#define NUPANET_DEFAULT_BASE_MAC_ADDR {0xFC, 0xAF, 0xAC, 0x00, 0x00, 0x00}
+#define HAS_DEBUG_CHAR_DEV                1
+#define NUPANET_DEFAULT_BASE_MAC_ADDR     {0xFC, 0xAF, 0xAC, 0x00, 0x00, 0x00}
 
 #undef DEBUG_THIS_MODULE
-#define DEBUG_THIS_MODULE          1
+#define DEBUG_THIS_MODULE                 1
 #if DEBUG_THIS_MODULE
-#define NUPA_DEBUG(fmt,...)             printk("[NUPA DEBUG] "fmt, ##__VA_ARGS__)
-#define NUPA_ERROR(fmt,...)             printk("[NUPA ERROR] "fmt, ##__VA_ARGS__)
+#define NUPA_DEBUG(fmt,...)               printk("[NUPA DEBUG] "fmt, ##__VA_ARGS__)
+#define NUPA_ERROR(fmt,...)               printk("[NUPA ERROR] "fmt, ##__VA_ARGS__)
 #else
 #define NUPA_DEBUG(fmt,...)
 #define NUPA_ERROR(fmt,...)

@@ -8,9 +8,9 @@
 //CMD         31:30       29:16          15:8            7:0
 //meaning     dir         data size      device type     function code
 //bit         2           14             8               8
-#define IOCTL_MAGIC              ('D')
-#define IOCTL_WRITE               _IO(IOCTL_MAGIC, 1)
-#define IOCTL_READ                _IO(IOCTL_MAGIC, 2)
+#define IOCTL_MAGIC                   ('D')
+#define IOCTL_RAW_WRITE               _IO(IOCTL_MAGIC, 1)
+#define IOCTL_RAW_READ                _IO(IOCTL_MAGIC, 2)
 
 #define NAME                     "debug"
 #define BUF_LENGTH               (8 << 12)

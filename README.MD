@@ -16,10 +16,11 @@ echo "VID DID" > new_id
 
 # How to test
 ls /dev/
-/dev/debug char device is generated for user to read/write dma device
-just run user_debug_test in super user mode
+
+/dev/debug char device is generated for user to read/write dma device,just run user_debug_test in super user mode
+
 sudo ./user_debug_test
 
-### write to /dev/debug will trigger dma to device
+### write to /dev/debug will use dma to write to device
 
 Then , we can read from device to testify
