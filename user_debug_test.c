@@ -6,25 +6,50 @@
 #include <errno.h>
 #include <string.h>
 
-#define CHAR_DEV "/dev/debug"
+#define DBG_CHAR_DEV "/dev/debug"
+
+void dump_buf(char* buf, int len)
+{
+  printf("************************************* DUMP BUF START *************************************************\r\n");
+  printf("     ");
+  for(int i = 0; i < 16; i++) 
+    printf("%4X ", i);
+
+  for(int j = 0; j < len; j++) {
+    if(j % 16 == 0) {
+      printf("\n%4X ", j);
+    }
+    printf("%4X ", buf[j]);
+  }
+  printf("\n************************************ DUMP BUF END **************************************************\r\n");
+}
 
 int main()
 {
     int fd;
     void* buf;
-    int length = 4096;
-    buf = malloc(length);
+    int length = 2048;
+    buf = malloc(2048);
+    memset(buf, 0, length);
     if(!buf) {
         fprintf(stderr, "malloc: %s\n", strerror(errno));
         exit(-1);
     }
-    fd = open(CHAR_DEV, O_RDWR);
-    if( fd < 0) {
-        fprintf(stderr, "open: %s\n", strerror(errno));
+    fd = open(DBG_CHAR_DEV, O_RDWR);
+    if(fd < 0) {
+        fprintf(stderr, "open 0: %s\n", strerror(errno));
         exit(-1);
     }
-    write(fd, buf, sizeof(buf));
-    read(fd, buf, sizeof(buf));
+    write(fd, buf, length);
+    close(fd);
+    fd = open(DBG_CHAR_DEV, O_RDWR);
+    if(fd < 0) {
+        fprintf(stderr, "open 1: %s\n", strerror(errno));
+        exit(-1);
+    }
+    memset(buf, 0, length);
+    read(fd, buf, 2048);
+    dump_buf(buf, 2048);
     close(fd);
     return 0;
 }

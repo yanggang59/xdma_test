@@ -47,7 +47,7 @@ void dump_buf(char* buf, int len)
   printk("\n**************************************************************************************\r\n");
 }
 
-static int dma_write_test(struct debug_cdev* debug, int pos, char* buf, int length)
+static int dma_to_device(struct debug_cdev* debug, int pos, char* buf, int length)
 {
 	int res;
 	int i;
@@ -58,7 +58,7 @@ static int dma_write_test(struct debug_cdev* debug, int pos, char* buf, int leng
 	struct scatterlist *sg;
 	unsigned int pages_nr;
 	struct sg_table *sgt;
-	NUPA_DEBUG("dma write test \r\n");
+	NUPA_DEBUG("dma_to_device \r\n");
 	sgt = kzalloc(sizeof(struct sg_table), GFP_KERNEL);
 
 	adapter = container_of(debug, struct nupanet_adapter, debug);
@@ -92,8 +92,7 @@ out:
 	return res;
 }
 
-
-static int dma_read_test(struct debug_cdev* debug, int pos, char* buf, int length)
+static int dma_from_device(struct debug_cdev* debug, int pos, char* buf, int length)
 {
 	int res;
 	int i;
@@ -156,12 +155,16 @@ static int debug_close(struct inode *inode, struct file *file)
 
 static ssize_t debug_read(struct file *file, char *dst, size_t count, loff_t *f_offset) 
 {
-#if 0
-    struct debug_cdev *debug = (struct debug_cdev *)file->private_data;
-	int ret;
-	printk(KERN_INFO "\n%s: reading from device", NAME);
-    printk("[Info] count = %ld, offset = %lld \r\n", count, *f_offset);
-	ret = copy_to_user(dst, debug->buf + *f_offset, count);
+#if 1
+	struct debug_cdev *debug = (struct debug_cdev *)file->private_data;
+	NUPA_DEBUG("dma read: count = %ld, offset = %lld \r\n", count, *f_offset);
+	if(*f_offset + count > debug->buf_size) {
+		NUPA_ERROR("over read debug file\r\n");
+		return -EINVAL;
+	}
+	dma_from_device(debug, *f_offset, debug->buf, count);
+	if(copy_to_user(dst, debug->buf + *f_offset, count))
+		return -EFAULT;
 	*f_offset += count;
 	return count;
 #else
@@ -170,7 +173,7 @@ static ssize_t debug_read(struct file *file, char *dst, size_t count, loff_t *f_
 	int pos = 0;
 	char* buf = kmalloc(length, GFP_KERNEL);
 	NUPA_DEBUG("dma read \r\n");
-	dma_read_test(debug, pos, buf, length);
+	dma_from_device(debug, pos, buf, length);
 	dump_buf(buf, length);
 	kfree(buf);
 	return count;
@@ -179,11 +182,16 @@ static ssize_t debug_read(struct file *file, char *dst, size_t count, loff_t *f_
 
 static ssize_t debug_write(struct file *file, const char *src, size_t count, loff_t *f_offset) 
 {
-#if 0
-    struct debug_cdev *debug = (struct debug_cdev *)file->private_data;
-	printk(KERN_INFO "\n%s: writing to device", NAME);
+#if 1
+	struct debug_cdev *debug = (struct debug_cdev *)file->private_data;
+	NUPA_DEBUG("dma write: count = %ld, offset = %lld \r\n", count, *f_offset);
+	if(*f_offset + count > debug->buf_size) {
+		NUPA_ERROR("over write debug file\r\n");
+		return -EINVAL;
+	}
 	if (copy_from_user(debug->buf, src, count) != 0)
 		return -EFAULT;
+	dma_to_device(debug, *f_offset, debug->buf, count);
 	*f_offset += count;
 	return count;
 #else
@@ -193,18 +201,38 @@ static ssize_t debug_write(struct file *file, const char *src, size_t count, lof
 	char* buf = kmalloc(length, GFP_KERNEL);
 	NUPA_DEBUG("dma write \r\n");
 	memset(buf, 'X', length);
-	dma_write_test(debug, pos, buf, length);
+	dma_to_device(debug, pos, buf, length);
 	kfree(buf);
 	return count;
 #endif
 }
 
+static long debug_ioctl (struct file *file, unsigned int cmd, unsigned long arg)
+{
+	NUPA_DEBUG("debug_ioctl , cmd = %#x, arg = %#lx\r\n", cmd, arg);
+	return 0;
+}
+
+static int debug_mmap(struct file *filp, struct vm_area_struct *vma)
+{
+	struct debug_cdev *debug;
+	unsigned long start, size;
+	start = (unsigned long)vma->vm_start;
+    size = (unsigned long)(vma->vm_end - vma->vm_start);
+	debug = (struct debug_cdev *)filp->private_data;
+	if(remap_pfn_range(vma, start, virt_to_phys(debug->buf) >> PAGE_SHIFT, size, PAGE_SHARED))
+         return -1;
+	return 0;
+}
+
 static struct file_operations debug_fops = {
 	.owner = THIS_MODULE,
 	.open = debug_open,
+	.mmap = debug_mmap,
 	.release = debug_close,
 	.write = debug_write,
-	.read = debug_read
+	.read = debug_read,
+	.unlocked_ioctl = debug_ioctl,
 };
 
 void delete_debug_cdev(struct debug_cdev* debug)
@@ -236,6 +264,7 @@ int create_debug_cdev(struct debug_cdev* debug)
 	cdev_init(&debug->cdev, &debug_fops);
 	debug->cdev.owner = THIS_MODULE;
 
+	debug->buf_size = BUF_LENGTH;
 	// allocates a buffer of size BUF_LENGTH
 	if ((debug->buf = kcalloc(BUF_LENGTH, sizeof(char), GFP_KERNEL)) == NULL) {
 		printk(KERN_ALERT "\n%s: failed to allocate buffer", NAME);

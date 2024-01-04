@@ -8,13 +8,14 @@
 #define IOCTL_ADDR               _IOR(IOCTL_MAGIC, 1, u32)
 
 #define NAME                     "debug"
-#define BUF_LENGTH               1024
+#define BUF_LENGTH               (8 << 12)
 
 
 struct debug_cdev{
     dev_t cdevno;
     struct class *class;
     char *buf;
+    int buf_size;
     struct cdev cdev;
 };
 

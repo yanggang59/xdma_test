@@ -37,11 +37,11 @@ else
 	PWD:=$(shell pwd)
 all :
 	$(MAKE) -C $(BUILDSYSTEM_DIR) M=$(PWD) modules
-	gcc user_debug_test.c -o user_test
+	gcc user_debug_test.c -o user_debug
 
 clean:
 	$(MAKE) -C $(BUILDSYSTEM_DIR) M=$(PWD) clean
-	@/bin/rm -f *.ko modules.order *.mod.c *.o *.o.ur-safe .*.o.cmd user_test
+	@/bin/rm -f *.ko modules.order *.mod.c *.o *.o.ur-safe .*.o.cmd user_debug
 
 install: all
 	@rm -f /lib/modules/5.15.0-67-generic/extra/xdma.ko

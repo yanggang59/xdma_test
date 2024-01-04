@@ -25,10 +25,14 @@ MODULE_DEVICE_TABLE(pci, pci_ids);
 static void adapter_free(struct nupanet_adapter *adapter)
 {
 	struct xdma_dev *xdev = adapter->xdev;
+	struct napi_struct *napi;
 	pr_info("adapter 0x%p, destroy_interfaces, xdev 0x%p.\n", adapter, xdev);
 	adapter->xdev = NULL;
+	napi = &adapter->napi;
 	pr_info("adapter 0x%p, xdev 0x%p xdma_device_close.\n", adapter, xdev);
 	xdma_device_close(adapter->pdev, xdev);
+	netif_napi_del(napi);
+	iounmap(adapter->shm_info.vaddr);
 	unregister_netdev(adapter->netdev);
 	NUPA_DEBUG("dev->reg_state = %d \r\n", adapter->netdev->reg_state);
 	free_netdev(adapter->netdev);
@@ -108,7 +112,7 @@ static struct sk_buff * xdma_receive_data(struct xdma_engine* engine, unsigned l
     return NULL;
 }
 
-static void sync_with_peer(struct xdma_engine* engine, int dst_id)
+static void nupa_notify_data_available(struct xdma_engine* engine, int dst_id)
 {
     //1.Get current head
 
@@ -159,7 +163,6 @@ static int xdma_send_data(struct xdma_engine* engine, struct sk_buff *skb, int p
 		sg = sg_next(sg);
 	}
 	res = xdma_xfer_submit(xdev, engine->channel, 1, pos, sgt, false, 0);
-    sync_with_peer(NULL, 0);
 	kfree(buf);
 out:
     return res;
@@ -218,6 +221,9 @@ static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb,
 	return 0;
 
     xdma_send_data(&adapter->xdev->engine_h2c[0], skb, pos);
+
+	//notify buddy, change to interrupt mechanism later 
+	nupa_notify_data_available(NULL, dst_id);
 
     //2. free skb
     dev_kfree_skb(skb);
@@ -418,7 +424,7 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	NUPA_DEBUG("set mac and name \r\n");
 	nupanet_set_mac(netdev, NULL);
-	strcpy(netdev->name, "nupa_net0");
+	strcpy(netdev->name, "nupanet%d");
 	NUPA_DEBUG("netif_napi_add \r\n");
     netif_napi_add(netdev, &adapter->napi, nupanet_poll, 64);
 
