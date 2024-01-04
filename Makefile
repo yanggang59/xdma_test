@@ -19,6 +19,7 @@ $(warning XVC_FLAGS: $(XVC_FLAGS).)
 topdir := $(shell cd $(src)/.. && pwd)
 
 TARGET_MODULE:=nupanet
+TEST_DIR:=test
 
 EXTRA_CFLAGS := -I$(topdir)/include $(XVC_FLAGS)
 ifeq ($(DEBUG),1)
@@ -37,11 +38,12 @@ else
 	PWD:=$(shell pwd)
 all :
 	$(MAKE) -C $(BUILDSYSTEM_DIR) M=$(PWD) modules
-	gcc user_debug_test.c -o user_debug
+	$(MAKE) -C $(TEST_DIR)
 
 clean:
 	$(MAKE) -C $(BUILDSYSTEM_DIR) M=$(PWD) clean
-	@/bin/rm -f *.ko modules.order *.mod.c *.o *.o.ur-safe .*.o.cmd user_debug
+	$(MAKE) -C $(TEST_DIR) clean
+	@/bin/rm -f *.ko modules.order *.mod.c *.o *.o.ur-safe .*.o.cmd
 
 install: all
 	@rm -f /lib/modules/5.15.0-67-generic/extra/xdma.ko

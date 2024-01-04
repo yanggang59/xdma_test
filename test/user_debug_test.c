@@ -29,7 +29,7 @@ int main()
     int fd;
     void* buf;
     int length = 2048;
-    buf = malloc(2048);
+    buf = malloc(length);
     memset(buf, 0, length);
     if(!buf) {
         fprintf(stderr, "malloc: %s\n", strerror(errno));
@@ -48,8 +48,8 @@ int main()
         exit(-1);
     }
     memset(buf, 0, length);
-    read(fd, buf, 2048);
-    dump_buf(buf, 2048);
+    read(fd, buf, length);
+    dump_buf(buf, length);
     close(fd);
     return 0;
 }
