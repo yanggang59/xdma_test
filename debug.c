@@ -153,9 +153,33 @@ static int debug_close(struct inode *inode, struct file *file)
 	return 0;
 }
 
+static void do_raw_read_test(struct file *file)
+{
+	struct debug_cdev *debug = (struct debug_cdev *)file->private_data;
+	int length = 4096;
+	int pos = 0;
+	char* buf = kmalloc(length, GFP_KERNEL);
+	NUPA_DEBUG("dma read \r\n");
+	dma_from_device(debug, pos, buf, length);
+	dump_buf(buf, length);
+	kfree(buf);
+}
+
+static void do_raw_write_test(struct file *file, char content)
+{
+	struct debug_cdev *debug = (struct debug_cdev *)file->private_data;
+	int length = 4096;
+	int pos = 0;
+	char* buf = kmalloc(length, GFP_KERNEL);
+	NUPA_DEBUG("dma write \r\n");
+	memset(buf, content, length);
+	dma_to_device(debug, pos, buf, length);
+	kfree(buf);
+}
+
+
 static ssize_t debug_read(struct file *file, char *dst, size_t count, loff_t *f_offset) 
 {
-#if 1
 	struct debug_cdev *debug = (struct debug_cdev *)file->private_data;
 	NUPA_DEBUG("dma read: count = %ld, offset = %lld \r\n", count, *f_offset);
 	if(*f_offset + count > debug->buf_size) {
@@ -167,22 +191,10 @@ static ssize_t debug_read(struct file *file, char *dst, size_t count, loff_t *f_
 		return -EFAULT;
 	*f_offset += count;
 	return count;
-#else
-	struct debug_cdev *debug = (struct debug_cdev *)file->private_data;
-	int length = 4096;
-	int pos = 0;
-	char* buf = kmalloc(length, GFP_KERNEL);
-	NUPA_DEBUG("dma read \r\n");
-	dma_from_device(debug, pos, buf, length);
-	dump_buf(buf, length);
-	kfree(buf);
-	return count;
-#endif
 }
 
 static ssize_t debug_write(struct file *file, const char *src, size_t count, loff_t *f_offset) 
 {
-#if 1
 	struct debug_cdev *debug = (struct debug_cdev *)file->private_data;
 	NUPA_DEBUG("dma write: count = %ld, offset = %lld \r\n", count, *f_offset);
 	if(*f_offset + count > debug->buf_size) {
@@ -194,22 +206,25 @@ static ssize_t debug_write(struct file *file, const char *src, size_t count, lof
 	dma_to_device(debug, *f_offset, debug->buf, count);
 	*f_offset += count;
 	return count;
-#else
-	struct debug_cdev *debug = (struct debug_cdev *)file->private_data;
-	int length = 4096;
-	int pos = 0;
-	char* buf = kmalloc(length, GFP_KERNEL);
-	NUPA_DEBUG("dma write \r\n");
-	memset(buf, 'X', length);
-	dma_to_device(debug, pos, buf, length);
-	kfree(buf);
-	return count;
-#endif
 }
 
 static long debug_ioctl (struct file *file, unsigned int cmd, unsigned long arg)
 {
+	//struct debug_cdev *debug = (struct debug_cdev *)file->private_data;
 	NUPA_DEBUG("debug_ioctl , cmd = %#x, arg = %#lx\r\n", cmd, arg);
+	switch(cmd)
+	{
+		case IOCTL_WRITE:
+			NUPA_DEBUG("debug_ioctl raw write test \r\n");
+			do_raw_write_test(file, 'X');
+			break;
+		case IOCTL_READ:
+			NUPA_DEBUG("debug_ioctl raw read test \r\n");
+			do_raw_read_test(file);
+			break;
+		default:
+			break;
+	}
 	return 0;
 }
 
@@ -220,8 +235,10 @@ static int debug_mmap(struct file *filp, struct vm_area_struct *vma)
 	start = (unsigned long)vma->vm_start;
     size = (unsigned long)(vma->vm_end - vma->vm_start);
 	debug = (struct debug_cdev *)filp->private_data;
-	if(remap_pfn_range(vma, start, virt_to_phys(debug->buf) >> PAGE_SHIFT, size, PAGE_SHARED))
-         return -1;
+	if(remap_pfn_range(vma, start, virt_to_phys(debug->buf) >> PAGE_SHIFT, size, PAGE_SHARED)) {
+		NUPA_ERROR("debug_mmap failed\r\n");
+		return -1;
+	}
 	return 0;
 }
 
