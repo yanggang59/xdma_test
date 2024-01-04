@@ -4,9 +4,9 @@
 
 make 
 
-sudo insmod xdma_test.ko
+sudo insmod nupanet.ko
 
-cd /sys/bus/pci/drivers/xdma_test
+cd /sys/bus/pci/drivers/nupanet
 
 sudo su
 
@@ -15,9 +15,10 @@ sudo su
 echo "VID DID" > new_id
 
 # How to test
-sudo su
-
-echo 1 > /dev/debug
+ls /dev/
+/dev/debug char device is generated for user to read/write dma device
+just run user_debug_test in super user mode
+sudo ./user_debug_test
 
 ### write to /dev/debug will trigger dma to device
 

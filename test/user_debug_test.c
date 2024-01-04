@@ -30,7 +30,7 @@ int main()
     void* buf;
     int length = 2048;
     buf = malloc(length);
-    memset(buf, 0, length);
+    memset(buf, 'K', length);
     if(!buf) {
         fprintf(stderr, "malloc: %s\n", strerror(errno));
         exit(-1);
