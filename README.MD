@@ -23,4 +23,6 @@ sudo ./user_debug_test
 
 ### write to /dev/debug will use dma to write to device
 
-Then , we can read from device to testify
+Then , we can read from device to testify, say, using hexdump
+
+sudo hexdump -C /dev/debug -n 4096 

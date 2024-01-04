@@ -29,7 +29,7 @@ void free_resource(struct debug_cdev* debug)
 	}
 }
 
-static int dma_to_device(struct debug_cdev* debug, int pos, char* buf, int length)
+static int dma_xfer_data(struct debug_cdev* debug, int pos, char* buf, int length, bool is_h2c)
 {
 	int res;
 	int i;
@@ -40,7 +40,11 @@ static int dma_to_device(struct debug_cdev* debug, int pos, char* buf, int lengt
 	struct scatterlist *sg;
 	unsigned int pages_nr;
 	struct sg_table *sgt;
-	NUPA_DEBUG("dma_to_device \r\n");
+	if(is_h2c) {
+		NUPA_DEBUG("dma_to_device \r\n");
+	} else {
+		NUPA_DEBUG("dma_from_device \r\n");
+	}
 	sgt = kzalloc(sizeof(struct sg_table), GFP_KERNEL);
 
 	adapter = container_of(debug, struct nupanet_adapter, debug);
@@ -68,53 +72,7 @@ static int dma_to_device(struct debug_cdev* debug, int pos, char* buf, int lengt
 		sg = sg_next(sg);
 	}
 
-	res = xdma_xfer_submit(xdev, engine->channel, 1, pos, sgt, dma_mapped, 0);
-out:
-	kfree(sgt);
-	return res;
-}
-
-static int dma_from_device(struct debug_cdev* debug, int pos, char* buf, int length)
-{
-	int res;
-	int i;
-	bool dma_mapped;
-	struct nupanet_adapter* adapter;
-	struct xdma_dev *xdev;
-	struct xdma_engine *engine;
-	struct scatterlist *sg;
-	unsigned int pages_nr;
-	struct sg_table *sgt;
-	NUPA_DEBUG("dma_from_device \r\n");
-	sgt = kzalloc(sizeof(struct sg_table), GFP_KERNEL);
-
-	adapter = container_of(debug, struct nupanet_adapter, debug);
-	xdev = adapter->xdev;
-	engine = &xdev->engine_c2h[0];
-	pos = 0;
-	dma_mapped = false;
-	
-	pages_nr = (((unsigned long)buf + length + PAGE_SIZE - 1) - ((unsigned long)buf & PAGE_MASK)) >> PAGE_SHIFT;
-	if (pages_nr == 0)
-		return -EINVAL;
-
-	if (sg_alloc_table(sgt, pages_nr, GFP_KERNEL)) {
-		NUPA_ERROR("sgl OOM.\n");
-		res = -ENOMEM;
-		goto out;
-	}
-	sg = &sgt->sgl[0];
-	for (i = 0; i < pages_nr; i++) {
-		unsigned int offset = offset_in_page(buf);
-		unsigned int nbytes = min_t(unsigned int, PAGE_SIZE - offset, length);
-		sg_set_buf(sg, buf, nbytes);
-		buf += nbytes;
-		length -= nbytes;
-		sg = sg_next(sg);
-	}
-
-	res = xdma_xfer_submit(xdev, engine->channel, 0, pos, sgt, dma_mapped, 0);
-
+	res = xdma_xfer_submit(xdev, engine->channel, is_h2c, pos, sgt, dma_mapped, 0);
 out:
 	kfree(sgt);
 	return res;
@@ -143,7 +101,7 @@ static void do_raw_read_test(struct file *file)
 	int res;
 	char* buf = kmalloc(length, GFP_KERNEL);
 	NUPA_DEBUG("dma raw read \r\n");
-	res = dma_from_device(debug, pos, buf, length);
+	res = dma_xfer_data(debug, pos, buf, length, false);
 	NUPA_DEBUG("dma raw read done , res = %d \r\n", res);
 	kfree(buf);
 }
@@ -157,7 +115,7 @@ static void do_raw_write_test(struct file *file, char content)
 	char* buf = kmalloc(length, GFP_KERNEL);
 	NUPA_DEBUG("dma raw write \r\n");
 	memset(buf, content, length);
-	res = dma_to_device(debug, pos, buf, length);
+	res = dma_xfer_data(debug, pos, buf, length, true);
 	NUPA_DEBUG("dma raw write done , res = %d \r\n", res);
 	kfree(buf);
 }
@@ -172,7 +130,7 @@ static ssize_t debug_read(struct file *file, char *dst, size_t count, loff_t *f_
 		NUPA_ERROR("over read debug file\r\n");
 		return -EINVAL;
 	}
-	res = dma_from_device(debug, *f_offset, debug->buf, count);
+	res = dma_xfer_data(debug, *f_offset, debug->buf, count, false);
 	if(copy_to_user(dst, debug->buf + *f_offset, count))
 		return -EFAULT;
 	*f_offset += count;
@@ -191,7 +149,7 @@ static ssize_t debug_write(struct file *file, const char *src, size_t count, lof
 	}
 	if (copy_from_user(debug->buf, src, count) != 0)
 		return -EFAULT;
-	res = dma_to_device(debug, *f_offset, debug->buf, count);
+	res = dma_xfer_data(debug, *f_offset, debug->buf, count, true);
 	*f_offset += count;
 	NUPA_DEBUG("debug_write done : count = %ld, offset = %lld , res = %d \r\n", count, *f_offset, res);
 	return count;
@@ -217,6 +175,7 @@ static long debug_ioctl (struct file *file, unsigned int cmd, unsigned long arg)
 	return 0;
 }
 
+#if DEBUG_USE_MMAP
 static int debug_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	struct debug_cdev *debug;
@@ -230,11 +189,14 @@ static int debug_mmap(struct file *filp, struct vm_area_struct *vma)
 	}
 	return 0;
 }
+#endif
 
 static struct file_operations debug_fops = {
 	.owner = THIS_MODULE,
 	.open = debug_open,
+#if DEBUG_USE_MMAP
 	.mmap = debug_mmap,
+#endif
 	.release = debug_close,
 	.write = debug_write,
 	.read = debug_read,

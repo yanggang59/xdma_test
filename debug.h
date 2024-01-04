@@ -12,8 +12,10 @@
 #define IOCTL_RAW_WRITE               _IO(IOCTL_MAGIC, 1)
 #define IOCTL_RAW_READ                _IO(IOCTL_MAGIC, 2)
 
-#define NAME                     "debug"
-#define BUF_LENGTH               (8 << 12)
+#define NAME                          "debug"
+#define BUF_LENGTH                    (8 << 12)
+
+#if DEBUG_USE_MMAP                    0
 
 
 struct debug_cdev{
