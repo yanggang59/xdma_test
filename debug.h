@@ -15,7 +15,7 @@
 #define NAME                          "debug"
 #define BUF_LENGTH                    (8 << 12)
 
-#if DEBUG_USE_MMAP                    0
+#define DEBUG_USE_MMAP                    0
 
 
 struct debug_cdev{
