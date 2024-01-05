@@ -96,18 +96,44 @@
 #define NUPA_ERROR(fmt,...)
 #endif
 
-#define SHARING_SIZE                      (0x100000)
-#define MAX_AGENT_NUM                     4
-#define INFO_SIZE                         (SHARING_SIZE / MAX_AGENT_NUM) 
+//MAX DMA Size id 32K
+#define MAX_DMA_SIZE                     (8 << 12)
+
+//Truly usable mem size is 32K
+#define USR_BAR_SHARING_SIZE              (8 << 12) //8 * 4K = 32K
+#define MAX_AGENT_NUM                     2
+#define INFO_SIZE                         (USR_BAR_SHARING_SIZE / MAX_AGENT_NUM)
+#define MAX_DESC_NUM                      256
+
+#define AGENT_MAX_DATA_SIZE               (MAX_DMA_SIZE / MAX_AGENT_NUM)
+
+enum packet_desc_status{
+	PACKET_INIT,
+	PACKET_IN_USE,
+	PACKET_SETTLED,
+	PACKET_RELEASED,
+};
 
 struct packet_desc {
 	int pos;
+	int offset;
 	int length;
+	int next;
+	int prev;
+	enum packet_desc_status status;
 };
+
+//maybe we should judge here when desc is too big
+
+// #if (sizeof(struct packet_desc) * MAX_DESC_NUM) > INFO_SIZE
+// #error "too many packet_descs" 
+// #endif
 
 struct packets_info {
 	int head;
-	int queue;
+	int tail;
+	int total_length;
+	bool ready;
 };
 
 struct pci_shm_info {
