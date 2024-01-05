@@ -53,7 +53,7 @@ static int dma_xfer_data(struct debug_cdev* debug, int pos, char* buf, int lengt
 		engine = &xdev->engine_h2c[0];
 	else
 		engine = &xdev->engine_c2h[0];
-	pos = 0;
+
 	dma_mapped = false;
 	
 	pages_nr = (((unsigned long)buf + length + PAGE_SIZE - 1) - ((unsigned long)buf & PAGE_MASK)) >> PAGE_SHIFT;
