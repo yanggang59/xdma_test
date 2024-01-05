@@ -96,6 +96,20 @@
 #define NUPA_ERROR(fmt,...)
 #endif
 
+#define SHARING_SIZE                      (0x100000)
+#define MAX_AGENT_NUM                     4
+#define INFO_SIZE                         (SHARING_SIZE / MAX_AGENT_NUM) 
+
+struct packet_desc {
+	int pos;
+	int length;
+};
+
+struct packets_info {
+	int head;
+	int queue;
+};
+
 struct pci_shm_info {
 	char __iomem* vaddr;
 	int length;

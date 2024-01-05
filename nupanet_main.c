@@ -14,8 +14,6 @@
 MODULE_AUTHOR("Clussys, Inc.");
 MODULE_LICENSE("Dual BSD/GPL");
 
-#define SHARING_BAR                0
-
 static const struct pci_device_id pci_ids[] = {
 	{ PCI_DEVICE(0x10ee, 0x9148), },
 	{0,}
@@ -66,25 +64,25 @@ static struct nupanet_adapter *adapter_alloc(struct pci_dev *pdev)
 
 int nupanet_open(struct net_device *dev)
 {
-    printk("nupanet_open called\n");
+    NUPA_DEBUG("nupanet_open called\n");
     return 0;
 }
 
 int nupanet_release(struct net_device *dev)
 {
-    printk("nupanet_release called\n");
+    NUPA_DEBUG("nupanet_release called\n");
     return 0;
 }
 
 int nupanet_close(struct net_device *netdev) 
 {
-    printk("[DEBUG] nupanet_close\r\n");
+    NUPA_DEBUG("nupanet_close\r\n");
     return 0; 
 }
 
 static void nupanet_set_rx_mode(struct net_device *netdev) 
 {
-    printk("[DEBUG] nupanet_set_rx_mode\r\n");
+    NUPA_DEBUG("nupanet_set_rx_mode\r\n");
 }
 
 /**
@@ -107,12 +105,15 @@ static unsigned long nupa_data_available(int host_id)
     return 0;
 }
 
-static void nupa_notify_data_available(struct xdma_engine* engine, int dst_id)
+static void nupa_notify_data_available(struct nupanet_adapter *adapter, int dst_id)
 {
-    //1.Get current head
+    char* shm_base;
+	char* dst_base;
 
-    //2.
-
+	NUPA_DEBUG("nupa_notify_data_available, dst_id = %d", dst_id);
+	BUG_ON(dst_id >= MAX_AGENT_NUM);
+	shm_base = adapter->shm_info.vaddr;
+	dst_base = shm_base + INFO_SIZE * dst_id;
 }
 
 static int xdma_transfer_data(struct xdma_engine* engine, struct sk_buff *skb, int pos, int length, char* buf, bool is_write)
@@ -222,7 +223,7 @@ static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb,
     NUPA_DEBUG("SRC: %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\r\n",src_mac_addr_p[0] & 0xFF,src_mac_addr_p[1] & 0xFF,src_mac_addr_p[2] & 0xFF, src_mac_addr_p[3] & 0xFF,src_mac_addr_p[4] & 0xFF,src_mac_addr_p[5] & 0xFF);
 
     // if (is_broadcast_ether_addr(dest_mac_addr_p) || is_multicast_ether_addr(dest_mac_addr_p)) {
-    //     printk("[Error] broadcast and multicast currently not supported ,will support later\r\n");
+    //     NUPA_ERROR("broadcast and multicast currently not supported ,will support later\r\n");
     //     return NET_XMIT_DROP;
     // }
     // should we check dest mac is online or not?
@@ -378,8 +379,7 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
     struct net_device *netdev;
     int err;
 
-	int dev_id = pdev->device;
-	NUPA_DEBUG("probe_one, dev_id = %#x \r\n", dev_id);
+	NUPA_DEBUG("probe_one, vendor_id = %#x, device_id = %#x \r\n", pdev->vendor, pdev->device);
 
 	adapter = adapter_alloc(pdev);
 	if (!adapter) {
@@ -440,18 +440,16 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto err_out;
 	}
 
-	pr_info("%s xdma%d, pdev 0x%p, xdev 0x%p, 0x%p, usr %d, ch %d,%d.\n",
-		dev_name(&pdev->dev), xdev->idx, pdev, adapter, xdev,
-		adapter->user_max, adapter->h2c_channel_max,
-		adapter->c2h_channel_max);
+	pr_info("%s xdma%d, pdev 0x%p, xdev 0x%p, 0x%p, usr %d, ch %d,%d.\n", dev_name(&pdev->dev), xdev->idx, pdev, adapter, xdev, adapter->user_max, adapter->h2c_channel_max, adapter->c2h_channel_max);
 
 	adapter->xdev = hndl;
 #if HAS_DEBUG_CHAR_DEV
 	create_debug_cdev(&adapter->debug);
 #endif
 
-	adapter->shm_info.vaddr = pci_ioremap_wc_bar(pdev, SHARING_BAR);
-    adapter->shm_info.length = pci_resource_len(pdev, SHARING_BAR);
+	NUPA_DEBUG("user %d, config %d, bypass %d.\n", xdev->user_bar_idx, xdev->config_bar_idx, xdev->bypass_bar_idx);
+	adapter->shm_info.vaddr = pci_ioremap_wc_bar(pdev, xdev->user_bar_idx);
+    adapter->shm_info.length = pci_resource_len(pdev, xdev->user_bar_idx);
 
 	NUPA_DEBUG("XDMA Init Done \r\n");
     netdev->netdev_ops = &nupanet_netdev_ops;

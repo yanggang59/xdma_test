@@ -49,7 +49,10 @@ static int dma_xfer_data(struct debug_cdev* debug, int pos, char* buf, int lengt
 
 	adapter = container_of(debug, struct nupanet_adapter, debug);
 	xdev = adapter->xdev;
-	engine = &xdev->engine_h2c[0];
+	if(is_h2c)
+		engine = &xdev->engine_h2c[0];
+	else
+		engine = &xdev->engine_c2h[0];
 	pos = 0;
 	dma_mapped = false;
 	
