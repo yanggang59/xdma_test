@@ -88,10 +88,10 @@ static void nupanet_set_rx_mode(struct net_device *netdev)
 /**
 * Currently only support 16 hosts connection
 */
-static char dev_id_to_host_id(int dev_id)
+static char device_id_to_host_id(int dev_id)
 {
     // 7138 ==> 1, 7238 ==> 2, 7338 ==> 3
-    return (dev_id > 8) & 0xF;
+    return (dev_id >> 8) & 0xF;
 }
 
 static int mac_addr_to_host_id(char* mac_addr)
@@ -355,7 +355,7 @@ static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb, struct net_device *ne
 
     NUPA_DEBUG("[XMIT] skb->len = %d , skb_headlen(skb) = %d", skb->len, skb_headlen(skb));
 	if(skb_headlen(skb) > DESC_MAX_DMA_SIZE) {
-		NUPA_ERROR("skb linear length too big \r\n");
+		NUPA_ERROR("skb linear length too bigping  \r\n");
 		goto out;
 	}
 	
@@ -393,9 +393,9 @@ static int nupanet_set_mac(struct net_device *netdev, void *p)
     // Change to reg version later 
     pdev = to_pci_dev(netdev->dev.parent);
     dev_id = pdev->device;
-	host_id = (int)dev_id_to_host_id(dev_id);
+	host_id = (int)device_id_to_host_id(dev_id);
 	NUPA_DEBUG("nupanet_set_mac, dev_id = %#x , host_id = %d\r\n", dev_id, host_id);
-    mac_addr[5] = dev_id_to_host_id(dev_id);
+    mac_addr[5] = device_id_to_host_id(dev_id);
     // Set MAC address
     netdev->dev_addr = mac_addr;
 	NUPA_DEBUG("nupanet_set_mac done\r\n");
