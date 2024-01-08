@@ -99,31 +99,66 @@ static int mac_addr_to_host_id(char* mac_addr)
     return mac_addr[5];
 }
 
-static unsigned long nupa_data_available(struct nupanet_adapter* adapter, int host_id)
+static struct packet_desc* nupa_data_available(struct nupanet_adapter* adapter, int host_id)
 {
     //TODO: determine if need to process data
 	char* shm_base;
 	char* host_base;
+	char* desc_base;
+	struct packets_info* info;
+	struct packet_desc* desc;
+	int head, tail;
 
 	NUPA_DEBUG("nupa_data_available, dst_id = %d", host_id);
 	BUG_ON(host_id >= MAX_AGENT_NUM);
 	shm_base = adapter->shm_info.vaddr;
 	host_base = shm_base + INFO_SIZE * host_id;
-    return 0;
+	desc_base = host_base + sizeof(struct packets_info);
+	info = (struct packets_info*)host_base;
+	head = info->head;
+	tail = info->tail;
+	//fetch tail desc
+	desc = (struct packet_desc*)desc_base + tail;
+
+	while(desc->status == PACKET_FREEZING){
+		NUPA_DEBUG(" desc at %d is FREEZING \r\n", tail);
+	}
+	//only cope with data settled
+	if(desc->status == PACKET_SETTLED) {
+		NUPA_DEBUG(" desc at %d is SETTLED \r\n", tail);
+		info->tail = tail + 1;
+		info->total_len -= desc->length;
+	} else if(desc->status == PACKET_INIT || desc->status == PACKET_RELEASED){
+		NUPA_DEBUG(" desc at %d is INIT or RELEASED \r\n", tail);
+		desc = NULL;
+	}
+    return desc;
 }
 
+#if 0
 static void nupa_notify_data_available(struct nupanet_adapter *adapter, int dst_id)
 {
     char* shm_base;
 	char* dst_base;
+	char* desc_base;
+	struct packet_desc* desc;
+	struct packets_info* info;
+	int head, tail;
 
 	NUPA_DEBUG("nupa_notify_data_available, dst_id = %d", dst_id);
 	BUG_ON(dst_id >= MAX_AGENT_NUM);
 	shm_base = adapter->shm_info.vaddr;
 	dst_base = shm_base + INFO_SIZE * dst_id;
-}
+	desc_base = dst_base + sizeof(struct packets_info);
+	info = (struct packets_info*)dst_base;
+	head = info->head;
+	tail = info->tail;
+	desc = (struct packet_desc*)desc_base + head;
 
-static int xdma_transfer_data(struct xdma_engine* engine, int pos, int length, char* buf, bool is_write)
+}
+#endif
+
+static int xdma_transfer_data(struct xdma_engine* engine, int offset, int length, char* buf, bool is_write)
 {
 	int res, i;
 	struct xdma_dev *xdev;
@@ -131,7 +166,7 @@ static int xdma_transfer_data(struct xdma_engine* engine, int pos, int length, c
 	unsigned int pages_nr;
 	struct sg_table *sgt;
 
-	NUPA_DEBUG("xdma_transfer_data , pos = %d , length = %d\r\n", pos, length);
+	NUPA_DEBUG("xdma_transfer_data , offset = %d , length = %d\r\n", offset, length);
 	if(length > PAGE_SIZE) {
 		NUPA_ERROR("skb linear length too big , length = %d \r\n", length);
 		res = -EINVAL;
@@ -159,7 +194,7 @@ static int xdma_transfer_data(struct xdma_engine* engine, int pos, int length, c
 		length -= nbytes;
 		sg = sg_next(sg);
 	}
-	res = xdma_xfer_submit(xdev, engine->channel, is_write, pos, sgt, false, 0);
+	res = xdma_xfer_submit(xdev, engine->channel, is_write, offset, sgt, false, 0);
 	if(is_write) {
 		NUPA_DEBUG("write: transferred %d \r\n", res);
 	} else {
@@ -169,7 +204,7 @@ out:
     return res;
 }
 
-static struct sk_buff * xdma_receive_data(struct nupanet_adapter* adapter, int pos, int length)
+static struct sk_buff * xdma_receive_data(struct nupanet_adapter* adapter, int offset, int length)
 {
 	int res;
 	char* buf;
@@ -185,7 +220,7 @@ static struct sk_buff * xdma_receive_data(struct nupanet_adapter* adapter, int p
 		NUPA_ERROR("allocate buf failed \r\n");
 		return NULL;
 	}
-	res = xdma_transfer_data(engine, pos, length, buf, false);
+	res = xdma_transfer_data(engine, offset, length, buf, false);
 	if(res == length) {
 		skb_put_data(skb, buf, length);
 	}
@@ -197,13 +232,13 @@ static struct sk_buff * xdma_receive_data(struct nupanet_adapter* adapter, int p
 	return skb;
 }
 
-static int xdma_send_data(struct xdma_engine* engine, struct sk_buff *skb, int pos, int length)
+static int xdma_send_data(struct xdma_engine* engine, struct sk_buff *skb, int offset, int length)
 {
 	char* buf;
 	// do we really need to allocate mem here?
 	buf = kmalloc(length, GFP_KERNEL);
 	memcpy(buf, skb->data, length);
-	return xdma_transfer_data(engine, pos, length, buf, true);
+	return xdma_transfer_data(engine, offset, length, buf, true);
 	kfree(buf);
 }
 
@@ -212,7 +247,7 @@ static bool mac_addr_valid(char* mac_addr)
 	return true;
 }
 
-struct packet_desc* fetch_packet_desc(struct nupanet_adapter *adapter, int agent_id, int length)
+struct packet_desc* fetch_packet_desc(struct nupanet_adapter *adapter, int dst_id, int length)
 {
 	struct packet_desc* desc;
 	char* shm_base;
@@ -220,26 +255,27 @@ struct packet_desc* fetch_packet_desc(struct nupanet_adapter *adapter, int agent
 	char* desc_base;
 	struct packets_info* info;
 	int head, tail;
-	int total_length;
+	int total_len;
 
-	NUPA_DEBUG("fetch_packet_desc, agent_id = %d", agent_id);
-	BUG_ON(agent_id >= MAX_AGENT_NUM);
+	NUPA_DEBUG("fetch_packet_desc, dst_id = %d", dst_id);
+	BUG_ON(dst_id >= MAX_AGENT_NUM);
 	shm_base = adapter->shm_info.vaddr;
-	host_base = shm_base + INFO_SIZE * agent_id;
+	host_base = shm_base + INFO_SIZE * dst_id;
 	desc_base = host_base + sizeof(struct packets_info);
 	info = (struct packets_info*)host_base;
 	head = info->head;
 	tail = info->tail;
 	desc = (struct packet_desc*)desc_base + head;
-	total_length += length;
-	if(total_length <= AGENT_MAX_DATA_SIZE) {
+	total_len += length;
+	if(total_len <= AGENT_MAX_DATA_SIZE) {
 		if (((head + 1) & (MAX_DESC_NUM -1)) == tail) {
 			NUPA_DEBUG("desc full");
 			desc = NULL;
 		} else {
-			info->total_length += total_length;
-			desc->status = PACKET_IN_USE;
+			info->total_len += length;
+			desc->status = PACKET_FREEZING;
 			info->head = (head++) % MAX_DESC_NUM;
+			desc->offset = desc->pos * DESC_MAX_DMA_SIZE;
 		}
 	} else {
 		NUPA_ERROR("Agent data full \r\n");
@@ -248,10 +284,7 @@ struct packet_desc* fetch_packet_desc(struct nupanet_adapter *adapter, int agent
 	return desc;
 }
 
-/**
-** 
-*/
-void packet_desc_init(struct nupanet_adapter *adapter)
+void adapter_info_init(struct nupanet_adapter *adapter)
 {
 	char* shm_base;
 	char* host_base;
@@ -262,13 +295,15 @@ void packet_desc_init(struct nupanet_adapter *adapter)
 	struct packet_desc* desc;
 
 	host_id = adapter->host_id;
-	NUPA_DEBUG("packet_desc_init, host_id = %d", host_id);
+	NUPA_DEBUG("adapter_info_init, host_id = %d", host_id);
 	BUG_ON(host_id >= MAX_AGENT_NUM);
 	shm_base = adapter->shm_info.vaddr;
 	host_base = shm_base + INFO_SIZE * host_id;
 	info = (struct packets_info*)host_base;
 	info->head = info->tail = 0;
+	//set ready ?
 	info->ready = true;
+	info->host_id = host_id;
 	desc_base = host_base + sizeof(struct packets_info);
 	memset(desc_base, 0, MAX_DESC_NUM * sizeof(struct packet_desc));
 	for(pos = 0,desc = (struct packet_desc*)desc_base; pos < MAX_DESC_NUM; pos++, desc++) {
@@ -295,13 +330,6 @@ static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb, struct net_device *ne
     NUPA_DEBUG("DEST: %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\r\n",dest_mac_addr_p[0] & 0xFF,dest_mac_addr_p[1] & 0xFF,dest_mac_addr_p[2] & 0xFF, dest_mac_addr_p[3] & 0xFF,dest_mac_addr_p[4] & 0xFF,dest_mac_addr_p[5] & 0xFF);
     NUPA_DEBUG("SRC: %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\r\n",src_mac_addr_p[0] & 0xFF,src_mac_addr_p[1] & 0xFF,src_mac_addr_p[2] & 0xFF, src_mac_addr_p[3] & 0xFF,src_mac_addr_p[4] & 0xFF,src_mac_addr_p[5] & 0xFF);
 
-    // if (is_broadcast_ether_addr(dest_mac_addr_p) || is_multicast_ether_addr(dest_mac_addr_p)) {
-    //     NUPA_ERROR("broadcast and multicast currently not supported ,will support later\r\n");
-    //     return NET_XMIT_DROP;
-    // }
-    // should we check dest mac is online or not?
-    // later, we should read reg to get current host ID
-
 	if (is_broadcast_ether_addr(dest_mac_addr_p)) {
 		NUPA_DEBUG("broadcast \r\n");
 	}
@@ -309,6 +337,13 @@ static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb, struct net_device *ne
 	if (is_multicast_ether_addr(dest_mac_addr_p)) {
 		NUPA_DEBUG("multicast \r\n");
 	}
+
+    if (is_broadcast_ether_addr(dest_mac_addr_p) || is_multicast_ether_addr(dest_mac_addr_p)) {
+        NUPA_ERROR("broadcast and multicast currently not supported ,will support later\r\n");
+        return NET_XMIT_DROP;
+    }
+    // should we check dest mac is online or not?
+    // later, we should read reg to get current host ID
 
     dst_id = mac_addr_to_host_id(dest_mac_addr_p);
     this_id = mac_addr_to_host_id(src_mac_addr_p);
@@ -319,7 +354,10 @@ static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb, struct net_device *ne
 	}
 
     NUPA_DEBUG("[XMIT] skb->len = %d , skb_headlen(skb) = %d", skb->len, skb_headlen(skb));
-	return 0;
+	if(skb_headlen(skb) > DESC_MAX_DMA_SIZE) {
+		NUPA_ERROR("skb linear length too big \r\n");
+		goto out;
+	}
 	
 	//currently only cope with linear data
 	length = skb_headlen(skb);
@@ -336,7 +374,7 @@ static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb, struct net_device *ne
     xdma_send_data(&adapter->xdev->engine_h2c[0], skb, offset, length);
 
 	//notify buddy, change to interrupt mechanism later 
-	nupa_notify_data_available(adapter, dst_id);
+	//nupa_notify_data_available(adapter, dst_id);
 	desc->status = PACKET_SETTLED;
 
 out:
@@ -364,10 +402,17 @@ static int nupanet_set_mac(struct net_device *netdev, void *p)
 	return 0;
 }
 
+#if KERNEL_VERSION(5, 0, 1) <= LINUX_VERSION_CODE
 static void nupanet_tx_timeout(struct net_device *dev, unsigned int txqueue)
 {
     NUPA_DEBUG("nupanet_tx_timeout\r\n");
 }
+#else
+static void nupanet_tx_timeout(struct net_device *dev)
+{
+    NUPA_DEBUG("nupanet_tx_timeout\r\n");
+}
+#endif
 
 static int nupanet_change_mtu(struct net_device *dev, int new_mtu)
 {
@@ -381,11 +426,13 @@ static int nupanet_validate_addr(struct net_device *dev)
 	return 0;
 }
 
+#if KERNEL_VERSION(5, 0, 1) <= LINUX_VERSION_CODE
 static int nupanet_eth_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 {
     NUPA_DEBUG("nupanet_eth_ioctl, cmd = %d\r\n", cmd);
 	return 0;
 }
+#endif
 
 static int nupanet_do_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 {
@@ -412,7 +459,9 @@ static const struct net_device_ops nupanet_netdev_ops = {
     .ndo_tx_timeout		= nupanet_tx_timeout,
     .ndo_change_mtu		= nupanet_change_mtu,
 	.ndo_do_ioctl		= nupanet_do_ioctl,
+#if KERNEL_VERSION(5, 0, 1) <= LINUX_VERSION_CODE
     .ndo_eth_ioctl		= nupanet_eth_ioctl,
+#endif
     .ndo_validate_addr	= nupanet_validate_addr,
 #ifdef CONFIG_NET_POLL_CONTROLLER
     .ndo_poll_controller	= nupanet_netpoll,
@@ -425,19 +474,19 @@ static int nupanet_poll(struct napi_struct *napi, int budget)
     int work_done = 0;
     gro_result_t gro_ret;
     struct nupanet_adapter* adapter;
-    int length = 0;
-	int pos = 0;
+	struct packet_desc* desc;
     int host_id;
     NUPA_DEBUG("nupanet_poll\r\n");
 	adapter = container_of(napi, struct nupanet_adapter, napi);
     host_id = adapter->host_id;
     while(1) {
         //TODO:check if need to process packet
-        if((length = nupa_data_available(adapter, host_id))) {
-            skb = xdma_receive_data(adapter, pos, length);
+        if((desc = nupa_data_available(adapter, host_id))) {
+            skb = xdma_receive_data(adapter, desc->offset, desc->length);
             if(!skb) {
                 break;
             }
+			desc->status = PACKET_RELEASED;
         } else {
             break;
         }
@@ -531,6 +580,8 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	NUPA_DEBUG("user %d, config %d, bypass %d.\n", xdev->user_bar_idx, xdev->config_bar_idx, xdev->bypass_bar_idx);
 	adapter->shm_info.vaddr = pci_ioremap_wc_bar(pdev, xdev->user_bar_idx);
     adapter->shm_info.length = pci_resource_len(pdev, xdev->user_bar_idx);
+
+	adapter_info_init(adapter);
 
 	NUPA_DEBUG("XDMA Init Done \r\n");
     netdev->netdev_ops = &nupanet_netdev_ops;

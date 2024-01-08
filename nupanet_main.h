@@ -103,13 +103,14 @@
 #define USR_BAR_SHARING_SIZE              (8 << 12) //8 * 4K = 32K
 #define MAX_AGENT_NUM                     2
 #define INFO_SIZE                         (USR_BAR_SHARING_SIZE / MAX_AGENT_NUM)
-#define MAX_DESC_NUM                      256
+#define MAX_DESC_NUM                      8
 
 #define AGENT_MAX_DATA_SIZE               (MAX_DMA_SIZE / MAX_AGENT_NUM)
+#define DESC_MAX_DMA_SIZE                 (AGENT_MAX_DATA_SIZE / MAX_DESC_NUM)
 
 enum packet_desc_status{
 	PACKET_INIT,
-	PACKET_IN_USE,
+	PACKET_FREEZING,
 	PACKET_SETTLED,
 	PACKET_RELEASED,
 };
@@ -130,9 +131,10 @@ struct packet_desc {
 // #endif
 
 struct packets_info {
+	int host_id;
 	int head;
 	int tail;
-	int total_length;
+	int total_len;
 	bool ready;
 };
 
