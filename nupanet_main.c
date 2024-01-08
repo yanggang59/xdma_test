@@ -581,6 +581,8 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	adapter->shm_info.vaddr = pci_ioremap_wc_bar(pdev, xdev->user_bar_idx);
     adapter->shm_info.length = pci_resource_len(pdev, xdev->user_bar_idx);
 
+	adapter->host_id = (int)device_id_to_host_id(pdev->device);
+
 	adapter_info_init(adapter);
 
 	NUPA_DEBUG("XDMA Init Done \r\n");
