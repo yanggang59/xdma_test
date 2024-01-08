@@ -128,7 +128,7 @@ static struct packet_desc* nupa_data_available(struct nupanet_adapter* adapter, 
 	if(desc->status == PACKET_SETTLED) {
 		NUPA_DEBUG(" desc at %d is SETTLED \r\n", tail);
 		info->tail = tail + 1;
-		info->total_len -= desc->length;
+		info->total_len -= DESC_MAX_DMA_SIZE;
 	} else if(desc->status == PACKET_INIT || desc->status == PACKET_RELEASED){
 		NUPA_DEBUG(" desc at %d is INIT or RELEASED \r\n", tail);
 		desc = NULL;
@@ -267,7 +267,7 @@ struct packet_desc* fetch_packet_desc(struct nupanet_adapter *adapter, int dst_i
 	head = info->head;
 	tail = info->tail;
 	desc = (struct packet_desc*)desc_base + head;
-	total_len += length;
+	total_len += DESC_MAX_DMA_SIZE;
 	if(total_len <= AGENT_MAX_DATA_SIZE) {
 		if (((head + 1) & (MAX_DESC_NUM -1)) == tail) {
 			NUPA_DEBUG("desc full");
@@ -509,6 +509,26 @@ static int nupanet_poll(struct napi_struct *napi, int budget)
     return 0;
 }
 
+static int nupanet_poll_thread(void *data)
+{
+	struct nupanet_adapter *adapter = data;
+	while (1) {
+		if (kthread_should_stop())
+			break;
+		napi_schedule(&adapter->napi);
+		cond_resched();
+	}
+	pr_info("nupanet_poll_thread stopped\n");
+	return 0;
+}
+
+static void nupanet_poll_start(struct nupanet_adapter *adapter)
+{
+	struct napi_struct *napi = &adapter->napi;
+	napi_enable(napi);
+	napi->thread = kthread_run(nupanet_poll_thread, adapter, "nupanet_poll_thread");
+}
+
 static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	int rv = 0;
@@ -609,6 +629,8 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto err_out;
 
 	dev_set_drvdata(&pdev->dev, adapter);
+
+	nupanet_poll_start(adapter);
 
 	return 0;
 
