@@ -118,6 +118,11 @@ static struct packet_desc* nupa_data_available(struct nupanet_adapter* adapter, 
 	info = (struct packets_info*)host_base;
 	head = info->head;
 	tail = info->tail;
+
+	if(head == tail) {
+		NUPA_DEBUG("nupa_data_available, dst_id = %d, desc empty, head = %d, tail =%d", host_id, head, tail);
+		return NULL;
+	}
 	//fetch tail desc
 	desc = (struct packet_desc*)desc_base + tail;
 
