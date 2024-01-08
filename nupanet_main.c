@@ -15,6 +15,7 @@ MODULE_AUTHOR("Clussys, Inc.");
 MODULE_LICENSE("Dual BSD/GPL");
 
 static const struct pci_device_id pci_ids[] = {
+	{ PCI_DEVICE(0x10ee, 0x9048), },
 	{ PCI_DEVICE(0x10ee, 0x9148), },
 	{0,}
 };
