@@ -200,7 +200,7 @@ static int xdma_transfer_data(struct xdma_engine* engine, int offset, int length
 		length -= nbytes;
 		sg = sg_next(sg);
 	}
-	res = xdma_xfer_submit(xdev, engine->channel, is_write, offset, sgt, false, 0);
+	res = xdma_xfer_submit_nowait(NULL, xdev, engine->channel, is_write, offset, sgt, false, 0);
 	if(is_write) {
 		NUPA_DEBUG("write: transferred %d \r\n", res);
 	} else {
@@ -384,6 +384,7 @@ broad:
 	//offset should be fetched from dst INFO area
 	offset = desc->offset;
 	desc->length = length;
+
 
     xdma_send_data(&adapter->xdev->engine_h2c[0], skb, offset, length);
 
@@ -634,7 +635,6 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto err_out;
 
 	dev_set_drvdata(&pdev->dev, adapter);
-
 	nupanet_poll_start(adapter);
 
 	return 0;

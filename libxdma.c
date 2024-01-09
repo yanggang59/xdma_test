@@ -3913,7 +3913,8 @@ ssize_t xdma_xfer_submit_nowait(void *cb_hndl, void *dev_hndl, int channel,
 
 	//used when doing completion.
 	req->cb = cb;
-	cb->req = req;
+	if(cb)
+		cb->req = req;
 	dbg_tfr("%s, len %u sg cnt %u.\n",
 		engine->name, req->total_len, req->sw_desc_cnt);
 
