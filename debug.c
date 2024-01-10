@@ -186,6 +186,7 @@ static int debug_mmap(struct file *filp, struct vm_area_struct *vma)
 	start = (unsigned long)vma->vm_start;
     size = (unsigned long)(vma->vm_end - vma->vm_start);
 	debug = (struct debug_cdev *)filp->private_data;
+	NUPA_DEBUG("debug_mmap , size = %#x \r\n", size);
 	if(size >= debug->info_len) {
 		size = debug->info_len;
 	}

@@ -51,6 +51,7 @@ int main()
     buf = malloc(buf_len);
     memset(buf, 0, buf_len);
     memset(buf, 'K', length);
+    char* access_address;
     if(!buf) {
         fprintf(stderr, "malloc: %s\n", strerror(errno));
         exit(-1);
@@ -70,6 +71,17 @@ int main()
     memset(buf, 0, buf_len);
     read(fd, buf, length);
     dump_buf(buf, buf_len);
+    close(fd);
+
+    fd = open(DBG_CHAR_DEV, O_RDWR);
+    if(fd < 0) {
+        fprintf(stderr, "open 2: %s\n", strerror(errno));
+        exit(-1);
+    }
+    access_address = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    printf("dump info addr start \r\n");
+    dump_buf(access_address, 4096);
+    printf("dump info addr done \r\n");
     close(fd);
 	  simple_io_test();
     return 0;
