@@ -11,6 +11,8 @@
 
 #define DRV_MODULE_NAME          "nupanet"
 
+#define USE_NO_WAIT              0
+
 MODULE_AUTHOR("Clussys, Inc.");
 MODULE_LICENSE("Dual BSD/GPL");
 
@@ -141,29 +143,6 @@ static struct packet_desc* nupa_data_available(struct nupanet_adapter* adapter, 
     return desc;
 }
 
-#if 0
-static void nupa_notify_data_available(struct nupanet_adapter *adapter, int dst_id)
-{
-    char* shm_base;
-	char* dst_base;
-	char* desc_base;
-	struct packet_desc* desc;
-	struct packets_info* info;
-	int head, tail;
-
-	NUPA_DEBUG("nupa_notify_data_available, dst_id = %d", dst_id);
-	BUG_ON(dst_id >= MAX_AGENT_NUM);
-	shm_base = adapter->shm_info.vaddr;
-	dst_base = shm_base + INFO_SIZE * dst_id;
-	desc_base = dst_base + sizeof(struct packets_info);
-	info = (struct packets_info*)dst_base;
-	head = info->head;
-	tail = info->tail;
-	desc = (struct packet_desc*)desc_base + head;
-
-}
-#endif
-
 static int xdma_transfer_data(struct xdma_engine* engine, int offset, int length, char* buf, bool is_write)
 {
 	int res, i;
@@ -200,7 +179,11 @@ static int xdma_transfer_data(struct xdma_engine* engine, int offset, int length
 		length -= nbytes;
 		sg = sg_next(sg);
 	}
+#if USE_NO_WAIT
 	res = xdma_xfer_submit_nowait(NULL, xdev, engine->channel, is_write, offset, sgt, false, 0);
+#else
+	res = xdma_xfer_submit(xdev, engine->channel, is_write, offset, sgt, false, 0);
+#endif
 	if(is_write) {
 		NUPA_DEBUG("write: transferred %d \r\n", res);
 	} else {
@@ -385,8 +368,9 @@ broad:
 	offset = desc->offset;
 	desc->length = length;
 
-
     xdma_send_data(&adapter->xdev->engine_h2c[0], skb, offset, length);
+
+	//schedule_work(&adapter->xmit_task);
 
 	//notify buddy, change to interrupt mechanism later 
 	//nupa_notify_data_available(adapter, dst_id);
@@ -535,6 +519,25 @@ static void nupanet_poll_start(struct nupanet_adapter *adapter)
 	napi->thread = kthread_run(nupanet_poll_thread, adapter, "nupanet_poll_thread");
 }
 
+
+static void nupanet_xmit_task(struct work_struct *work)
+{
+	struct nupanet_adapter *adapter = container_of(work, struct nupanet_adapter, xmit_task);
+	NUPA_DEBUG("XMIT WORK \r\n");
+
+	//xdma_send_data(&adapter->xdev->engine_h2c[0], skb, offset, length);
+
+
+
+}
+
+static void nupanet_rcv_task(struct work_struct *work)
+{
+	struct nupanet_adapter *adapter = container_of(work, struct nupanet_adapter, rcv_task);
+
+}
+
+
 static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	int rv = 0;
@@ -628,6 +631,9 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	strcpy(netdev->name, "nupanet%d");
 	NUPA_DEBUG("netif_napi_add \r\n");
     netif_napi_add(netdev, &adapter->napi, nupanet_poll, 64);
+
+	INIT_WORK(&adapter->xmit_task, nupanet_xmit_task);
+	INIT_WORK(&adapter->rcv_task, nupanet_rcv_task);
 
     err = register_netdev(netdev);
     NUPA_DEBUG("register_netdev Done , err = %d\r\n", err);

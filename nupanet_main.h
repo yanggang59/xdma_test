@@ -158,6 +158,8 @@ struct nupanet_adapter {
 
 	struct net_device *netdev;
 	struct napi_struct napi;
+	struct work_struct xmit_task;
+	struct work_struct rcv_task;
 	int host_id;
 #if HAS_DEBUG_CHAR_DEV
 	struct debug_cdev debug;

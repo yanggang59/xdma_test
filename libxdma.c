@@ -88,6 +88,8 @@ MODULE_PARM_DESC(desc_blen_max,
 			wait_event_interruptible
 #endif
 
+#define USE_WAKE_UP                     0
+
 
 /*
  * xdma device management
@@ -3593,7 +3595,7 @@ ssize_t xdma_xfer_submit(void *dev_hndl, int channel, bool write, u64 ep_addr,
 
 		if (engine->cmplthp)
 			xdma_kthread_wakeup(engine->cmplthp);
-
+#if USE_WAKE_UP
 		if (timeout_ms > 0)
 			xlx_wait_event_interruptible_timeout(xfer->wq,
 				(xfer->state != TRANSFER_STATE_SUBMITTED),
@@ -3601,7 +3603,9 @@ ssize_t xdma_xfer_submit(void *dev_hndl, int channel, bool write, u64 ep_addr,
 		else
 			xlx_wait_event_interruptible(xfer->wq,
 				(xfer->state != TRANSFER_STATE_SUBMITTED));
-
+#else
+		while(xfer->state == TRANSFER_STATE_NEW);
+#endif
 		spin_lock_irqsave(&engine->lock, flags);
 
 		switch (xfer->state) {
