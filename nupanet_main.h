@@ -100,7 +100,7 @@
 #define MAX_DMA_SIZE                     (8 << 12)
 
 //Truly usable mem size is 32K
-#define USR_BAR_SHARING_SIZE              (8 << 12) //8 * 4K = 32K
+#define USR_BAR_SHARING_SIZE              (2 << 12) //2 * 4K = 8K
 #define MAX_AGENT_NUM                     2
 #define INFO_SIZE                         (USR_BAR_SHARING_SIZE / MAX_AGENT_NUM)
 #define MAX_DESC_NUM                      8
