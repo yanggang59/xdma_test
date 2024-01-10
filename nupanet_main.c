@@ -308,6 +308,7 @@ void adapter_info_init(struct nupanet_adapter *adapter)
 
 	host_id = adapter->host_id;
 	NUPA_DEBUG("adapter_info_init, host_id = %d", host_id);
+	NUPA_DEBUG("adapter_info_init, sizeof(struct packets_info) = %ld, sizeof(struct packet_desc) = %d \r\n", sizeof(struct packets_info), sizeof(struct packet_desc));
 	BUG_ON(host_id >= MAX_AGENT_NUM);
 	shm_base = adapter->shm_info.vaddr;
 	//clean my shm space first

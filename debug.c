@@ -183,12 +183,18 @@ static int debug_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	struct debug_cdev *debug;
 	unsigned long start, size;
+	char* buf;
+	int i;
 	start = (unsigned long)vma->vm_start;
     size = (unsigned long)(vma->vm_end - vma->vm_start);
 	debug = (struct debug_cdev *)filp->private_data;
-	NUPA_DEBUG("debug_mmap , size = %#x \r\n", size);
+	NUPA_DEBUG("debug_mmap , size = %#lx \r\n", size);
 	if(size >= debug->info_len) {
 		size = debug->info_len;
+	}
+	buf = (char *)debug->info_buf + 0x400; 
+	for(i = 0; i < 256; i++) {
+		buf[i] = 'X';
 	}
 	if(remap_pfn_range(vma, start, virt_to_phys(debug->info_buf) >> PAGE_SHIFT, size, PAGE_SHARED)) {
 		NUPA_ERROR("debug_mmap failed\r\n");
