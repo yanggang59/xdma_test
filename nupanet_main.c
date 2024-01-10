@@ -27,6 +27,7 @@ static void adapter_free(struct nupanet_adapter *adapter)
 {
 	struct xdma_dev *xdev;
 	struct napi_struct *napi;
+	int host_id = adapter->host_id;
 
 	xdev = adapter->xdev;
 	pr_info("adapter 0x%p, destroy_interfaces, xdev 0x%p.\n", adapter, xdev);
@@ -35,9 +36,10 @@ static void adapter_free(struct nupanet_adapter *adapter)
 	pr_info("adapter 0x%p, xdev 0x%p xdma_device_close.\n", adapter, xdev);
 	xdma_device_close(adapter->pdev, xdev);
 	netif_napi_del(napi);
+	//clear my own info
+	memset(adapter->shm_info.vaddr + (host_id * INFO_SIZE), 0, INFO_SIZE);
 	iounmap(adapter->shm_info.vaddr);
 	unregister_netdev(adapter->netdev);
-	NUPA_DEBUG("dev->reg_state = %d \r\n", adapter->netdev->reg_state);
 	free_netdev(adapter->netdev);
 }
 
@@ -102,6 +104,14 @@ static int mac_addr_to_host_id(char* mac_addr)
     return mac_addr[5];
 }
 
+
+/** |=====================================================================
+*   |          |            |            |           |
+*   |   info   |    desc    |    desc    |    ...    |
+*   |          |            |            |           |
+*   |====================================================================
+*/  
+
 static struct packet_desc* nupa_data_available(struct nupanet_adapter* adapter, int host_id)
 {
     //TODO: determine if need to process data
@@ -112,7 +122,7 @@ static struct packet_desc* nupa_data_available(struct nupanet_adapter* adapter, 
 	struct packet_desc* desc;
 	int head, tail;
 
-	NUPA_DEBUG("nupa_data_available, dst_id = %d", host_id);
+	//NUPA_DEBUG("nupa_data_available, host_id = %d", host_id);
 	BUG_ON(host_id >= MAX_AGENT_NUM);
 	shm_base = adapter->shm_info.vaddr;
 	host_base = shm_base + INFO_SIZE * host_id;
@@ -122,7 +132,7 @@ static struct packet_desc* nupa_data_available(struct nupanet_adapter* adapter, 
 	tail = info->tail;
 
 	if(head == tail) {
-		NUPA_DEBUG("nupa_data_available, dst_id = %d, desc empty, head = %d, tail =%d", host_id, head, tail);
+		//NUPA_DEBUG("nupa_data_available, host_id = %d, desc empty, head = %d, tail =%d", host_id, head, tail);
 		return NULL;
 	}
 	//fetch tail desc
@@ -210,6 +220,9 @@ static struct sk_buff * xdma_receive_data(struct nupanet_adapter* adapter, int o
 		return NULL;
 	}
 	res = xdma_transfer_data(engine, offset, length, buf, false);
+	NUPA_DEBUG("xdma_receive_data, res = %d, expect %d\r\n", res, length);
+	skb_put_data(skb, buf, length);
+#if 0
 	if(res == length) {
 		skb_put_data(skb, buf, length);
 	}
@@ -217,6 +230,7 @@ static struct sk_buff * xdma_receive_data(struct nupanet_adapter* adapter, int o
 		skb = NULL;
 		NUPA_ERROR("dma read res = %d, expect %d\r\n", res, length);
 	}
+#endif
 	kfree(buf);
 	return skb;
 }
@@ -227,8 +241,8 @@ static int xdma_send_data(struct xdma_engine* engine, struct sk_buff *skb, int o
 	// do we really need to allocate mem here?
 	buf = kmalloc(length, GFP_KERNEL);
 	memcpy(buf, skb->data, length);
-	return xdma_transfer_data(engine, offset, length, buf, true);
 	kfree(buf);
+	return xdma_transfer_data(engine, offset, length, buf, true);
 }
 
 static bool mac_addr_valid(char* mac_addr)
@@ -244,6 +258,8 @@ struct packet_desc* fetch_packet_desc(struct nupanet_adapter *adapter, int dst_i
 	char* desc_base;
 	struct packets_info* info;
 	int head, tail;
+	bool ready;
+
 	int total_len;
 
 	NUPA_DEBUG("fetch_packet_desc, dst_id = %d", dst_id);
@@ -254,6 +270,12 @@ struct packet_desc* fetch_packet_desc(struct nupanet_adapter *adapter, int dst_i
 	info = (struct packets_info*)host_base;
 	head = info->head;
 	tail = info->tail;
+	ready = info->ready;
+
+	if(!ready) {
+		NUPA_DEBUG("fetch_packet_desc, dst_id = %d, not ready \r\n", dst_id);
+		return NULL;
+	}
 	desc = (struct packet_desc*)desc_base + head;
 	total_len += DESC_MAX_DMA_SIZE;
 	if(total_len <= AGENT_MAX_DATA_SIZE) {
@@ -331,7 +353,7 @@ static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb, struct net_device *ne
 	// }
 
     if (is_broadcast_ether_addr(dest_mac_addr_p) || is_multicast_ether_addr(dest_mac_addr_p)) {
-        NUPA_ERROR("broadcast and multicast currently not supported ,will support later\r\n");
+        NUPA_ERROR("broadcast and multicast currently not supported ,will support later \r\n");
         for(i = 0; i< MAX_AGENT_NUM; i++) {
 			if(i != adapter->host_id) {
 				dst_id = i;
@@ -352,9 +374,9 @@ broad:
 		return NETDEV_TX_BUSY;
 	}
 
-    NUPA_DEBUG("[XMIT] skb->len = %d , skb_headlen(skb) = %d", skb->len, skb_headlen(skb));
+    NUPA_DEBUG("[XMIT] skb->len = %d , skb_headlen(skb) = %d, dst_id =%d \r\n ", skb->len, skb_headlen(skb), dst_id);
 	if(skb_headlen(skb) > DESC_MAX_DMA_SIZE) {
-		NUPA_ERROR("skb linear length too bigping  \r\n");
+		NUPA_ERROR("skb linear length too big  \r\n");
 		goto out;
 	}
 	
@@ -365,7 +387,7 @@ broad:
 		NUPA_ERROR("fetch_packet_desc fail \r\n");
 		goto out;
 	}
-	
+	NUPA_DEBUG("nupanet_xmit_frame desc->pos = %d \r\n", desc->pos);
 	//offset should be fetched from dst INFO area
 	offset = desc->offset;
 	desc->length = length;
@@ -477,7 +499,7 @@ static int nupanet_poll(struct napi_struct *napi, int budget)
     struct nupanet_adapter* adapter;
 	struct packet_desc* desc;
     int host_id;
-    NUPA_DEBUG("nupanet_poll\r\n");
+    //NUPA_DEBUG("nupanet_poll\r\n");
 	adapter = container_of(napi, struct nupanet_adapter, napi);
     host_id = adapter->host_id;
     while(1) {

@@ -47,8 +47,9 @@ int main()
 {
     int fd;
     void* buf;
-    int length = 2048;
-    buf = malloc(length);
+    int length = 44, buf_len = 2048;
+    buf = malloc(buf_len);
+    memset(buf, 0, buf_len);
     memset(buf, 'K', length);
     if(!buf) {
         fprintf(stderr, "malloc: %s\n", strerror(errno));
@@ -66,10 +67,10 @@ int main()
         fprintf(stderr, "open 1: %s\n", strerror(errno));
         exit(-1);
     }
-    memset(buf, 0, length);
+    memset(buf, 0, buf_len);
     read(fd, buf, length);
-    dump_buf(buf, length);
+    dump_buf(buf, buf_len);
     close(fd);
-	simple_io_test();
+	  simple_io_test();
     return 0;
 }
