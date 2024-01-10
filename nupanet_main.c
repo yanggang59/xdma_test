@@ -311,9 +311,9 @@ void adapter_info_init(struct nupanet_adapter *adapter)
 	NUPA_DEBUG("adapter_info_init, sizeof(struct packets_info) = %ld, sizeof(struct packet_desc) = %d \r\n", sizeof(struct packets_info), sizeof(struct packet_desc));
 	BUG_ON(host_id >= MAX_AGENT_NUM);
 	shm_base = adapter->shm_info.vaddr;
-	//clean my shm space first
-	memset(shm_base, 0, adapter->shm_info.length);
 	host_base = shm_base + INFO_SIZE * host_id;
+	//clean my shm space first
+	memset(host_base , 0, INFO_SIZE);
 	info = (struct packets_info*)host_base;
 	info->head = info->tail = 0;
 	//set ready ?
@@ -346,14 +346,6 @@ static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb, struct net_device *ne
     NUPA_DEBUG("DEST: %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\r\n",dest_mac_addr_p[0] & 0xFF,dest_mac_addr_p[1] & 0xFF,dest_mac_addr_p[2] & 0xFF, dest_mac_addr_p[3] & 0xFF,dest_mac_addr_p[4] & 0xFF,dest_mac_addr_p[5] & 0xFF);
     NUPA_DEBUG("SRC: %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\r\n",src_mac_addr_p[0] & 0xFF,src_mac_addr_p[1] & 0xFF,src_mac_addr_p[2] & 0xFF, src_mac_addr_p[3] & 0xFF,src_mac_addr_p[4] & 0xFF,src_mac_addr_p[5] & 0xFF);
 
-	// if (is_broadcast_ether_addr(dest_mac_addr_p)) {
-	// 	NUPA_DEBUG("broadcast \r\n");
-	// }
-
-	// if (is_multicast_ether_addr(dest_mac_addr_p)) {
-	// 	NUPA_DEBUG("multicast \r\n");
-	// }
-
     if (is_broadcast_ether_addr(dest_mac_addr_p) || is_multicast_ether_addr(dest_mac_addr_p)) {
         NUPA_ERROR("broadcast and multicast currently not supported ,will support later \r\n");
         for(i = 0; i< MAX_AGENT_NUM; i++) {
@@ -373,7 +365,7 @@ broad:
 
 	if((!mac_addr_valid(src_mac_addr_p)) || (!mac_addr_valid(dest_mac_addr_p))) {
 		NUPA_DEBUG("Address Not Valid \r\n");
-		return NETDEV_TX_BUSY;
+		return NETDEV_TX_OK;
 	}
 
     NUPA_DEBUG("[XMIT] skb->len = %d , skb_headlen(skb) = %d, dst_id =%d \r\n ", skb->len, skb_headlen(skb), dst_id);
