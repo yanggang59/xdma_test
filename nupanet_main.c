@@ -287,6 +287,8 @@ void adapter_info_init(struct nupanet_adapter *adapter)
 	NUPA_DEBUG("adapter_info_init, host_id = %d", host_id);
 	BUG_ON(host_id >= MAX_AGENT_NUM);
 	shm_base = adapter->shm_info.vaddr;
+	//clean my shm space first
+	memset(shm_base, 0, adapter->shm_info.length);
 	host_base = shm_base + INFO_SIZE * host_id;
 	info = (struct packets_info*)host_base;
 	info->head = info->tail = 0;
@@ -496,19 +498,20 @@ static int nupanet_poll(struct napi_struct *napi, int budget)
             break;
         }
     }
-    return 0;
+    return work_done;
 }
 
 static int nupanet_poll_thread(void *data)
 {
 	struct nupanet_adapter *adapter = data;
 	while (1) {
+		NUPA_DEBUG("nupanet_poll_thread running\n");
 		if (kthread_should_stop())
 			break;
 		napi_schedule(&adapter->napi);
 		cond_resched();
 	}
-	pr_info("nupanet_poll_thread stopped\n");
+	NUPA_DEBUG("nupanet_poll_thread stopped\n");
 	return 0;
 }
 
