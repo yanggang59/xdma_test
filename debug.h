@@ -15,7 +15,7 @@
 #define NAME                          "debug"
 #define BUF_LENGTH                    (8 << 12)
 
-#define DEBUG_USE_MMAP                    0
+#define DEBUG_USE_MMAP                1
 
 
 struct debug_cdev{
@@ -24,9 +24,12 @@ struct debug_cdev{
     char *buf;
     int buf_size;
     struct cdev cdev;
+
+    char* info_buf;
+    int info_len;
 };
 
 void delete_debug_cdev(struct debug_cdev* debug);
-int create_debug_cdev(struct debug_cdev* debug);
+int create_debug_cdev(struct debug_cdev* debug, char* info_buf, int info_len);
 
 #endif

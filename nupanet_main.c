@@ -280,13 +280,14 @@ struct packet_desc* fetch_packet_desc(struct nupanet_adapter *adapter, int dst_i
 	total_len += DESC_MAX_DMA_SIZE;
 	if(total_len <= AGENT_MAX_DATA_SIZE) {
 		if (((head + 1) & (MAX_DESC_NUM -1)) == tail) {
-			NUPA_DEBUG("desc full");
+			NUPA_DEBUG("fetch_packet_desc, desc full");
 			desc = NULL;
 		} else {
 			info->total_len += length;
 			desc->status = PACKET_FREEZING;
 			info->head = (head++) % MAX_DESC_NUM;
 			desc->offset = desc->pos * DESC_MAX_DMA_SIZE;
+			NUPA_DEBUG("fetch_packet_desc, info->head = %d , desc->offset = %d \r\n", head, desc->offset);
 		}
 	} else {
 		NUPA_ERROR("Agent data full \r\n");
@@ -638,13 +639,14 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	pr_info("%s xdma%d, pdev 0x%p, xdev 0x%p, 0x%p, usr %d, ch %d,%d.\n", dev_name(&pdev->dev), xdev->idx, pdev, adapter, xdev, adapter->user_max, adapter->h2c_channel_max, adapter->c2h_channel_max);
 
 	adapter->xdev = hndl;
-#if HAS_DEBUG_CHAR_DEV
-	create_debug_cdev(&adapter->debug);
-#endif
 
 	NUPA_DEBUG("user %d, config %d, bypass %d.\n", xdev->user_bar_idx, xdev->config_bar_idx, xdev->bypass_bar_idx);
 	adapter->shm_info.vaddr = pci_ioremap_wc_bar(pdev, xdev->user_bar_idx);
     adapter->shm_info.length = pci_resource_len(pdev, xdev->user_bar_idx);
+
+#if HAS_DEBUG_CHAR_DEV
+	create_debug_cdev(&adapter->debug, adapter->shm_info.vaddr, adapter->shm_info.length);
+#endif
 
 	adapter->host_id = (int)device_id_to_host_id(pdev->device);
 

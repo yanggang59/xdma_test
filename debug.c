@@ -186,7 +186,10 @@ static int debug_mmap(struct file *filp, struct vm_area_struct *vma)
 	start = (unsigned long)vma->vm_start;
     size = (unsigned long)(vma->vm_end - vma->vm_start);
 	debug = (struct debug_cdev *)filp->private_data;
-	if(remap_pfn_range(vma, start, virt_to_phys(debug->buf) >> PAGE_SHIFT, size, PAGE_SHARED)) {
+	if(size >= debug->info_len) {
+		size = debug->info_len;
+	}
+	if(remap_pfn_range(vma, start, virt_to_phys(debug->info_buf) >> PAGE_SHIFT, size, PAGE_SHARED)) {
 		NUPA_ERROR("debug_mmap failed\r\n");
 		return -1;
 	}
@@ -212,7 +215,7 @@ void delete_debug_cdev(struct debug_cdev* debug)
     free_resource(debug);
 }
 
-int create_debug_cdev(struct debug_cdev* debug)
+int create_debug_cdev(struct debug_cdev* debug, char* info_buf, int info_len)
 {
     if (alloc_chrdev_region(&debug->cdevno, 0, 1, NAME) < 0) {
 		printk(KERN_ALERT "\n%s: failed to allocate a major number", NAME);
@@ -242,6 +245,12 @@ int create_debug_cdev(struct debug_cdev* debug)
 		free_resource(debug);
 		return -ENOMEM;
 	}
+
+	if(info_buf && info_len) {
+		debug->info_buf = info_buf;
+		debug->info_len = info_len;
+	}
+
 	// add device to the kernel 
 	if (cdev_add(&debug->cdev, debug->cdevno, 1)) {
 		printk(KERN_ALERT "\n%s: unable to add char device", NAME);
