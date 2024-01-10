@@ -498,6 +498,9 @@ static int nupanet_poll(struct napi_struct *napi, int budget)
             break;
         }
     }
+	if (work_done == budget)
+		return budget;
+	napi_complete_done(napi, work_done);
     return work_done;
 }
 
@@ -505,7 +508,6 @@ static int nupanet_poll_thread(void *data)
 {
 	struct nupanet_adapter *adapter = data;
 	while (1) {
-		NUPA_DEBUG("nupanet_poll_thread running\n");
 		if (kthread_should_stop())
 			break;
 		napi_schedule(&adapter->napi);
