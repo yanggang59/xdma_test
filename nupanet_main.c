@@ -285,9 +285,9 @@ struct packet_desc* fetch_packet_desc(struct nupanet_adapter *adapter, int dst_i
 		} else {
 			info->total_len += length;
 			desc->status = PACKET_FREEZING;
-			info->head = (head++) % MAX_DESC_NUM;
+			info->head = (head + 1) % MAX_DESC_NUM;
 			desc->offset = desc->pos * DESC_MAX_DMA_SIZE;
-			NUPA_DEBUG("fetch_packet_desc, info->head = %d , desc->offset = %d \r\n", head, desc->offset);
+			NUPA_DEBUG("fetch_packet_desc, info->head = %d , desc->offset = %d \r\n", info->head, desc->offset);
 		}
 	} else {
 		NUPA_ERROR("Agent data full \r\n");
