@@ -55,6 +55,11 @@ static void random_read_write_test()
     unsigned char* w_buf;
     unsigned char* r_buf;
     int len = 100;
+    w_buf = malloc(4096);
+    if(!w_buf) {
+        fprintf(stderr, "malloc: %s\n", strerror(errno));
+        return -ENOMEM;
+    }
     fd = open("./test8K_ramdom", O_RDWR);
     if(fd < 0) {
         fprintf(stderr, "open: %s\n", strerror(errno));
@@ -73,6 +78,10 @@ static void random_read_write_test()
     close(fd);
 
     r_buf = malloc(4096);
+    if(!r_buf) {
+        fprintf(stderr, "malloc: %s\n", strerror(errno));
+        return -ENOMEM;
+    }
     fd = open(DBG_CHAR_DEV, O_RDWR);
     if(fd < 0) {
         fprintf(stderr, "open 2: %s\n", strerror(errno));
