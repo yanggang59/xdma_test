@@ -96,8 +96,8 @@
 #define NUPA_ERROR(fmt,...)
 #endif
 
-//MAX DMA Size id 32K
-#define MAX_DMA_SIZE                     (8 << 12)
+//MAX DMA Size is 256K
+#define TOTAL_DMA_SIZE                     (64 << 12) //256K
 
 //Truly usable mem size is 32K
 #define USR_BAR_SHARING_SIZE              (1 << 12) //4K
@@ -105,8 +105,8 @@
 #define INFO_SIZE                         (USR_BAR_SHARING_SIZE / MAX_AGENT_NUM)
 #define MAX_DESC_NUM                      8
 
-#define AGENT_MAX_DATA_SIZE               (MAX_DMA_SIZE / MAX_AGENT_NUM)
-#define DESC_MAX_DMA_SIZE                 (AGENT_MAX_DATA_SIZE / MAX_DESC_NUM)
+#define AGENT_TOTAL_DMA_SIZE              (TOTAL_DMA_SIZE / MAX_AGENT_NUM)
+#define DESC_MAX_DMA_SIZE                 (AGENT_TOTAL_DMA_SIZE / MAX_DESC_NUM)
 
 enum packet_desc_status{
 	PACKET_INIT,

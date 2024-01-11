@@ -144,7 +144,7 @@ static struct packet_desc* nupa_data_available(struct nupanet_adapter* adapter, 
 	//only cope with data settled
 	if(desc->status == PACKET_SETTLED) {
 		NUPA_DEBUG(" desc at %d is SETTLED \r\n", tail);
-		info->tail = tail + 1;
+		info->tail = (tail + 1) % MAX_DESC_NUM;
 		info->total_len -= DESC_MAX_DMA_SIZE;
 	} else if(desc->status == PACKET_INIT || desc->status == PACKET_RELEASED){
 		NUPA_DEBUG(" desc at %d is INIT or RELEASED \r\n", tail);
@@ -278,7 +278,7 @@ struct packet_desc* fetch_packet_desc(struct nupanet_adapter *adapter, int dst_i
 	}
 	desc = (struct packet_desc*)desc_base + head;
 	total_len += DESC_MAX_DMA_SIZE;
-	if(total_len <= AGENT_MAX_DATA_SIZE) {
+	if(total_len <= AGENT_TOTAL_DMA_SIZE) {
 		if (((head + 1) & (MAX_DESC_NUM -1)) == tail) {
 			NUPA_DEBUG("fetch_packet_desc, desc full");
 			desc = NULL;
@@ -286,7 +286,7 @@ struct packet_desc* fetch_packet_desc(struct nupanet_adapter *adapter, int dst_i
 			info->total_len += length;
 			desc->status = PACKET_FREEZING;
 			info->head = (head + 1) % MAX_DESC_NUM;
-			desc->offset = desc->pos * DESC_MAX_DMA_SIZE;
+			desc->offset = (AGENT_TOTAL_DMA_SIZE * dst_id) + (desc->pos * DESC_MAX_DMA_SIZE);
 			NUPA_DEBUG("fetch_packet_desc, info->head = %d , desc->offset = %d \r\n", info->head, desc->offset);
 		}
 	} else {
