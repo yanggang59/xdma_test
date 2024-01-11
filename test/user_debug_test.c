@@ -49,13 +49,15 @@ static void simple_io_test(void)
 #endif
 
 #ifdef RND_RW_TEST 
-static void random_read_write_test()
+static int random_read_write_test()
 {
     int fd;
     unsigned char* w_buf;
     unsigned char* r_buf;
     int len = 100;
+    int ret;
     w_buf = malloc(4096);
+    memset(w_buf, 0, 4096);
     if(!w_buf) {
         fprintf(stderr, "malloc: %s\n", strerror(errno));
         return -ENOMEM;
@@ -66,7 +68,7 @@ static void random_read_write_test()
         exit(-1);
     }
     read(fd, w_buf, 4096);
-    dump_usr_buf(w_buf, 4096, "write");
+    dump_usr_buf(w_buf, 1024, "write");
     close(fd);
 
     fd = open(DBG_CHAR_DEV, O_RDWR);
@@ -78,6 +80,7 @@ static void random_read_write_test()
     close(fd);
 
     r_buf = malloc(4096);
+    memset(r_buf, 0, 4096);
     if(!r_buf) {
         fprintf(stderr, "malloc: %s\n", strerror(errno));
         return -ENOMEM;
@@ -88,8 +91,15 @@ static void random_read_write_test()
         exit(-1);
     }
     read(fd, r_buf, len);
-    dump_usr_buf(w_buf, 4096, "read");
+    dump_usr_buf(r_buf, 1024, "read");
     close(fd);
+
+    ret = memcmp(w_buf, r_buf, len);
+    if(!ret) {
+        printf("read write buf is the same \r\n");
+    } else {
+        printf("read write buf is not the same, ret = %d \r\n", ret);
+    }
 }
 #endif
 
