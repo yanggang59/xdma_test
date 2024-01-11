@@ -375,11 +375,13 @@ static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb, struct net_device *ne
 	struct packet_desc* desc;
 	int i;
 	int dump_ctl;
+	int hold_ic_ctl;
 
 	NUPA_DEBUG("nupanet_xmit_frame\r\n");
 
     adapter = netdev_priv(netdev);
 	dump_ctl = adapter->debug.dump_ctl;
+	hold_ic_ctl = adapter->debug.hold_ic_ctl;
 
     dest_mac_addr_p = (char *)skb->data;
     src_mac_addr_p = (char *)skb->data + ETH_ALEN;
@@ -390,6 +392,12 @@ static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb, struct net_device *ne
     NUPA_DEBUG("SRC: %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\r\n",src_mac_addr_p[0] & 0xFF,src_mac_addr_p[1] & 0xFF,src_mac_addr_p[2] & 0xFF, src_mac_addr_p[3] & 0xFF,src_mac_addr_p[4] & 0xFF,src_mac_addr_p[5] & 0xFF);
 
 	NUPA_DEBUG("Type: 0x%.2x%.2x \r\n", type[0] & 0xFF, type[1] & 0xFF);
+
+	if(hold_ic_ctl) {
+		NUPA_DEBUG("XMIT HOLD \r\n");
+		return NETDEV_TX_OK;
+	}
+
     if (is_broadcast_ether_addr(dest_mac_addr_p) || is_multicast_ether_addr(dest_mac_addr_p)) {
         NUPA_ERROR("broadcast and multicast currently not supported ,will support later \r\n");
         for(i = 0; i< MAX_AGENT_NUM; i++) {
@@ -536,9 +544,17 @@ static int nupanet_poll(struct napi_struct *napi, int budget)
     struct nupanet_adapter* adapter;
 	struct packet_desc* desc;
     int host_id;
+	int hold_ic_ctl;
+
     //NUPA_DEBUG("nupanet_poll\r\n");
 	adapter = container_of(napi, struct nupanet_adapter, napi);
     host_id = adapter->host_id;
+	hold_ic_ctl = adapter->debug.hold_ic_ctl;
+
+	if(hold_ic_ctl) {
+		return NETDEV_TX_OK;
+	}
+
     while(1) {
         //TODO:check if need to process packet
         if((desc = nupa_data_available(adapter, host_id))) {

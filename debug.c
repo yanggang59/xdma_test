@@ -168,26 +168,42 @@ static long debug_ioctl (struct file *file, unsigned int cmd, unsigned long arg)
 			NUPA_DEBUG("debug_ioctl raw write test \r\n");
 			do_raw_write_test(file, 'X');
 			break;
+
 		case IOCTL_RAW_READ:
 			NUPA_DEBUG("debug_ioctl raw read test \r\n");
 			do_raw_read_test(file);
 			break;
+
 		case IOCTL_DUMP_MSG_ON:
 			NUPA_DEBUG("debug_ioctl dump msg on\r\n");
 			debug->dump_ctl = 1;
 			break;
+
 		case IOCTL_DUMP_MSG_OFF:
 			NUPA_DEBUG("debug_ioctl dump msg off\r\n");
 			debug->dump_ctl = 0;
 			break;
+
 		case IOCTL_HACK_CTL_ON:
 			NUPA_DEBUG("debug_ioctl hack control on \r\n");
 			debug->hack_ctl = 1;
 			break;
+
 		case IOCTL_HACK_CTL_OFF:
 			NUPA_DEBUG("debug_ioctl hack control on \r\n");
 			debug->hack_ctl = 0;
 			break;
+
+		case IOCTL_HOLD_IC_ON:
+			NUPA_DEBUG("debug_ioctl hold ic control on \r\n");
+			debug->hold_ic_ctl = 1;
+			break;
+		
+		case IOCTL_HOLD_IC_OFF:
+			NUPA_DEBUG("debug_ioctl hold ic control off \r\n");
+			debug->hold_ic_ctl = 0;
+			break;
+
 		default:
 			break;
 	}
@@ -270,6 +286,7 @@ int create_debug_cdev(struct debug_cdev* debug, char* info_buf, int info_len)
 
 	debug->dump_ctl = 0;
 	debug->hack_ctl = 0;
+	debug->hold_ic_ctl = 0;
 
 	// add device to the kernel 
 	if (cdev_add(&debug->cdev, debug->cdevno, 1)) {

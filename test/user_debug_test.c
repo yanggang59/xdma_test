@@ -16,6 +16,8 @@
 #define IOCTL_DUMP_MSG_OFF               _IO(IOCTL_MAGIC, 4)
 #define IOCTL_HACK_CTL_ON                _IO(IOCTL_MAGIC, 5)
 #define IOCTL_HACK_CTL_OFF               _IO(IOCTL_MAGIC, 6)
+#define IOCTL_HOLD_IC_ON                 _IO(IOCTL_MAGIC, 7)
+#define IOCTL_HOLD_IC_OFF                _IO(IOCTL_MAGIC, 8)
 
 void dump_usr_buf(unsigned char* buf, int len, char* info)
 {
@@ -48,6 +50,30 @@ static void simple_io_test(void)
 }
 #endif
 
+
+static void hold_ic_ctl_switch(int flag)
+{
+    int fd, ret;
+    printf("hold_ic_ctl_switch switch \r\n");
+    fd = open(DBG_CHAR_DEV, O_RDWR);
+    if(fd < 0) {
+        fprintf(stderr, "open: %s\n", strerror(errno));
+        exit(-1);
+    }
+    if(flag) {
+        printf("hold_ic_ctl_switch on \r\n");
+        ret = ioctl(fd, IOCTL_HOLD_IC_ON, NULL);
+    } else {
+        printf("hold_ic_ctl_switch off \r\n");
+        ret = ioctl(fd, IOCTL_HOLD_IC_OFF, NULL);
+    }
+    if(ret < 0) {
+        fprintf(stderr, "ioctl: %s\n", strerror(errno));
+        exit(-1);
+    }
+    close(fd);
+}
+
 #ifdef RND_RW_TEST 
 static int random_read_write_test()
 {
@@ -56,6 +82,9 @@ static int random_read_write_test()
     unsigned char* r_buf;
     int len = 100;
     int ret;
+    printf("[Info] hold ic switch on\r\n");
+    hold_ic_ctl_switch(1);
+
     w_buf = malloc(4096);
     memset(w_buf, 0, 4096);
     if(!w_buf) {
@@ -100,6 +129,8 @@ static int random_read_write_test()
     } else {
         printf("read write buf is not the same, ret = %d \r\n", ret);
     }
+    printf("[Info] hold ic switch off\r\n");
+    hold_ic_ctl_switch(0);
 }
 #endif
 
