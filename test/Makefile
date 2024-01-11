@@ -4,7 +4,7 @@ CC := gcc
  
 SRC = $(wildcard *.c)
 OBJ = $(patsubst %.c,$(OUTPUTDIR)/%.o,$(notdir $(SRC)))
-TARGET = read_write_test simple_io_test dump_msg_on dump_msg_off hack_ctl_on hack_ctl_off rnd_rw_test test8K_ramdom
+TARGET = read_write_test simple_io_test dump_msg_on dump_msg_off hack_ctl_on hack_ctl_off rnd_rw_test test8K_ramdom hold_ic_ctl_on hold_ic_ctl_off
 
 $(TARGET):$(SRC)
 	$(CC) $< -DREAD_WRITE_TEST -o read_write_test
@@ -15,6 +15,8 @@ $(TARGET):$(SRC)
 	$(CC) $< -DHACK_CTL_OFF -o hack_ctl_off
 	$(CC) $< -DRND_RW_TEST -o rnd_rw_test
 	./gen_data.sh
+	$(CC) $< -DHOLD_IC_CTL_ON -o hold_ic_ctl_on
+	$(CC) $< -DHOLD_IC_CTL_OFF -o hold_ic_ctl_off
 
 clean:
 	rm -f $(TARGET)

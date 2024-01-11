@@ -50,7 +50,7 @@ static void simple_io_test(void)
 }
 #endif
 
-
+#if defined(RND_RW_TEST) || defined(HOLD_IC_CTL_ON) || defined(HOLD_IC_CTL_OFF)
 static void hold_ic_ctl_switch(int flag)
 {
     int fd, ret;
@@ -73,6 +73,7 @@ static void hold_ic_ctl_switch(int flag)
     }
     close(fd);
 }
+#endif
 
 #ifdef RND_RW_TEST 
 static int random_read_write_test()
@@ -138,13 +139,18 @@ static int random_read_write_test()
 static void read_write_test(char cont)
 {
     int fd;
-    void* buf;
+    unsigned char* w_buf;
+    unsigned char* r_buf;
     int length = 44, buf_len = 2048;
-    buf = malloc(buf_len);
-    memset(buf, 0, buf_len);
-    memset(buf, cont, length);
-    char* access_address;
-    if(!buf) {
+    w_buf = malloc(buf_len);
+    r_buf = malloc(buf_len);
+    memset(w_buf, 0, buf_len);
+    memset(w_buf, cont, length);
+
+    dump_usr_buf(w_buf, length, "write");
+
+    memset(r_buf, 0, buf_len);
+    if((!w_buf) || (!r_buf)) {
         fprintf(stderr, "malloc: %s\n", strerror(errno));
         exit(-1);
     }
@@ -153,27 +159,15 @@ static void read_write_test(char cont)
         fprintf(stderr, "open 0: %s\n", strerror(errno));
         exit(-1);
     }
-    write(fd, buf, length);
+    write(fd, w_buf, length);
     close(fd);
     fd = open(DBG_CHAR_DEV, O_RDWR);
     if(fd < 0) {
         fprintf(stderr, "open 1: %s\n", strerror(errno));
         exit(-1);
     }
-    memset(buf, 0, buf_len);
-    read(fd, buf, length);
-    dump_usr_buf(buf, buf_len, "");
-    close(fd);
-
-    fd = open(DBG_CHAR_DEV, O_RDWR);
-    if(fd < 0) {
-        fprintf(stderr, "open 2: %s\n", strerror(errno));
-        exit(-1);
-    }
-    access_address = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    printf("dump info addr start \r\n");
-    dump_usr_buf(access_address, 4096, "");
-    printf("dump info addr done \r\n");
+    read(fd, r_buf, length);
+    dump_usr_buf(r_buf, length, "read");
     close(fd);
 }
 #endif
@@ -251,7 +245,15 @@ int main()
 #endif
 
 #ifdef RND_RW_TEST 
-random_read_write_test();
+    random_read_write_test();
+#endif
+
+#ifdef HOLD_IC_CTL_ON
+    hold_ic_ctl_switch(1);
+#endif
+
+#ifdef HOLD_IC_CTL_OFF
+    hold_ic_ctl_switch(0);
 #endif
     return 0;
 }
