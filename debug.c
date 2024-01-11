@@ -180,6 +180,14 @@ static long debug_ioctl (struct file *file, unsigned int cmd, unsigned long arg)
 			NUPA_DEBUG("debug_ioctl dump msg off\r\n");
 			debug->dump_ctl = 0;
 			break;
+		case IOCTL_HACK_CTL_ON:
+			NUPA_DEBUG("debug_ioctl hack control on \r\n");
+			debug->hack_ctl = 1;
+			break;
+		case IOCTL_HACK_CTL_OFF:
+			NUPA_DEBUG("debug_ioctl hack control on \r\n");
+			debug->hack_ctl = 0;
+			break;
 		default:
 			break;
 	}
@@ -261,6 +269,7 @@ int create_debug_cdev(struct debug_cdev* debug, char* info_buf, int info_len)
 	}
 
 	debug->dump_ctl = 0;
+	debug->hack_ctl = 0;
 
 	// add device to the kernel 
 	if (cdev_add(&debug->cdev, debug->cdevno, 1)) {

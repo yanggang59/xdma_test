@@ -14,6 +14,8 @@
 #define IOCTL_RAW_READ                _IO(IOCTL_MAGIC, 2)
 #define IOCTL_DUMP_MSG_ON                _IO(IOCTL_MAGIC, 3)
 #define IOCTL_DUMP_MSG_OFF               _IO(IOCTL_MAGIC, 4)
+#define IOCTL_HACK_CTL_ON                _IO(IOCTL_MAGIC, 5)
+#define IOCTL_HACK_CTL_OFF               _IO(IOCTL_MAGIC, 6)
 
 void dump_usr_buf(char* buf, int len)
 {
@@ -113,6 +115,29 @@ static void dump_msg_switch(int flag)
     close(fd);
 }
 
+static void hack_control_switch(int flag)
+{
+    int fd, ret;
+    printf("hack control switch \r\n");
+    fd = open(DBG_CHAR_DEV, O_RDWR);
+    if(fd < 0) {
+        fprintf(stderr, "open: %s\n", strerror(errno));
+        exit(-1);
+    }
+    if(flag) {
+        printf("hack ctl on \r\n");
+        ret = ioctl(fd, IOCTL_HACK_CTL_ON, NULL);
+    } else {
+        printf("hack ctl off \r\n");
+        ret = ioctl(fd, IOCTL_HACK_CTL_OFF, NULL);
+    }
+    if(ret < 0) {
+        fprintf(stderr, "ioctl: %s\n", strerror(errno));
+        exit(-1);
+    }
+    close(fd);
+}
+
 int main()
 {
 #ifdef READ_WRITE_TEST
@@ -129,6 +154,14 @@ int main()
 
 #ifdef DUMP_MSG_OFF
     dump_msg_switch(0);
+#endif
+
+#ifdef HACK_CTL_ON
+    hack_control_switch(1);
+#endif
+
+#ifdef HACK_CTL_OFF
+    hack_control_switch(0);
 #endif
     return 0;
 }

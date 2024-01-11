@@ -13,9 +13,11 @@
 #define IOCTL_RAW_READ                   _IO(IOCTL_MAGIC, 2)
 #define IOCTL_DUMP_MSG_ON                _IO(IOCTL_MAGIC, 3)
 #define IOCTL_DUMP_MSG_OFF               _IO(IOCTL_MAGIC, 4)
+#define IOCTL_HACK_CTL_ON                _IO(IOCTL_MAGIC, 5)
+#define IOCTL_HACK_CTL_OFF               _IO(IOCTL_MAGIC, 6)
 
-#define NAME                          "debug"
-#define BUF_LENGTH                    (8 << 12)
+#define NAME                            "debug"
+#define BUF_LENGTH                      (8 << 12)
 
 #define DEBUG_USE_MMAP                1
 
@@ -31,6 +33,7 @@ struct debug_cdev{
     int info_len;
 
     int dump_ctl;
+    int hack_ctl;
 };
 
 void delete_debug_cdev(struct debug_cdev* debug);

@@ -210,11 +210,13 @@ static struct sk_buff * xdma_receive_data(struct nupanet_adapter* adapter, int o
 	struct xdma_engine* engine;
 	struct sk_buff *skb;
 	int dump_ctl;
+	int hack_ctl;
 
 	engine = &adapter->xdev->engine_c2h[0];
 	skb = napi_alloc_skb(&adapter->napi, length);
 
 	dump_ctl = adapter->debug.dump_ctl;
+	hack_ctl = adapter->debug.hack_ctl;
 
 	//do we really need to allocate data here?
 	buf = kmalloc(length, GFP_KERNEL);
@@ -224,6 +226,19 @@ static struct sk_buff * xdma_receive_data(struct nupanet_adapter* adapter, int o
 	}
 	res = xdma_transfer_data(engine, offset, length, buf, false);
 	NUPA_DEBUG("xdma_receive_data, res = %d, expect %d\r\n", res, length);
+	if(hack_ctl) {
+		buf[32] = 0;
+		buf[33] = 0;
+		buf[34] = 0;
+		buf[35] = 0;
+		buf[36] = 0;
+		buf[37] = 0;
+	
+		buf[38] = 0xC0;
+		buf[39] = 0xa8;
+		buf[40] = 0x08;
+		buf[41] = 0x64;
+	}
 	if(dump_ctl) {
 		print_hex_dump(KERN_DEBUG, "rcv : ", DUMP_PREFIX_OFFSET, 16, 1, buf, length, false);
 	}
