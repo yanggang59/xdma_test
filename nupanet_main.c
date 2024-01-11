@@ -203,17 +203,22 @@ out:
     return res;
 }
 
-static struct sk_buff * xdma_receive_data(struct nupanet_adapter* adapter, int offset, int length)
+static struct sk_buff * xdma_receive_data(struct nupanet_adapter* adapter, struct packet_desc* desc)
 {
 	int res;
-	char* buf;
+	unsigned char* buf;
 	struct xdma_engine* engine;
 	struct sk_buff *skb;
 	int dump_ctl;
 	int hack_ctl;
+	int offset, length;
+
+	offset = desc->offset;
+	length = desc->length;
 
 	engine = &adapter->xdev->engine_c2h[0];
 	skb = napi_alloc_skb(&adapter->napi, length);
+
 
 	dump_ctl = adapter->debug.dump_ctl;
 	hack_ctl = adapter->debug.hack_ctl;
@@ -226,7 +231,7 @@ static struct sk_buff * xdma_receive_data(struct nupanet_adapter* adapter, int o
 	}
 	res = xdma_transfer_data(engine, offset, length, buf, false);
 	NUPA_DEBUG("xdma_receive_data, res = %d, expect %d\r\n", res, length);
-	if(hack_ctl) {
+	if(hack_ctl && (length==42)) {
 		buf[32] = 0;
 		buf[33] = 0;
 		buf[34] = 0;
@@ -240,6 +245,7 @@ static struct sk_buff * xdma_receive_data(struct nupanet_adapter* adapter, int o
 		buf[41] = 0x64;
 	}
 	if(dump_ctl) {
+		NUPA_DEBUG("xdma_receive_data, desc->pos =  %d, offset = %d, length = %d \r\n", desc->pos, desc->offset, desc->length);
 		print_hex_dump(KERN_DEBUG, "rcv : ", DUMP_PREFIX_OFFSET, 16, 1, buf, length, false);
 	}
 	skb_put_data(skb, buf, length);
@@ -256,12 +262,23 @@ static struct sk_buff * xdma_receive_data(struct nupanet_adapter* adapter, int o
 	return skb;
 }
 
-static int xdma_send_data(struct xdma_engine* engine, struct sk_buff *skb, int offset, int length)
+static int xdma_send_data(struct nupanet_adapter *adapter, struct sk_buff *skb, struct packet_desc* desc)
 {
-	char* buf;
+	unsigned char* buf;
+	struct xdma_engine* engine;
+	int offset, length;
+	int dump_ctl;
+
+	dump_ctl = adapter->debug.dump_ctl;
+	engine = &adapter->xdev->engine_h2c[0];
+	offset = desc->offset;
+	length = desc->length;
 	// do we really need to allocate mem here?
 	buf = kmalloc(length, GFP_KERNEL);
 	memcpy(buf, skb->data, length);
+	if(dump_ctl)
+		print_hex_dump(KERN_DEBUG, "send_buf: ", DUMP_PREFIX_OFFSET, 16, 1, buf, length, false);
+	NUPA_DEBUG("xdma_send_data, desc->pos = %d, desc->offset = %d, desc->length = %d \r\n",desc->pos, desc->offset, desc->length);
 	kfree(buf);
 	return xdma_transfer_data(engine, offset, length, buf, true);
 }
@@ -283,7 +300,6 @@ struct packet_desc* fetch_packet_desc(struct nupanet_adapter *adapter, int dst_i
 
 	int total_len;
 
-	NUPA_DEBUG("fetch_packet_desc, dst_id = %d", dst_id);
 	BUG_ON(dst_id >= MAX_AGENT_NUM);
 	shm_base = adapter->shm_info.vaddr;
 	host_base = shm_base + INFO_SIZE * dst_id;
@@ -308,7 +324,7 @@ struct packet_desc* fetch_packet_desc(struct nupanet_adapter *adapter, int dst_i
 			desc->status = PACKET_FREEZING;
 			info->head = (head + 1) % MAX_DESC_NUM;
 			desc->offset = (AGENT_TOTAL_DMA_SIZE * dst_id) + (desc->pos * DESC_MAX_DMA_SIZE);
-			NUPA_DEBUG("fetch_packet_desc, info->head = %d , desc->offset = %d \r\n", info->head, desc->offset);
+			NUPA_DEBUG("fetch_packet_desc, dst_id = %d, desc->pos = %d, info->head = %d, desc->offset = %d, desc->length = %d \r\n", dst_id, desc->pos, head, desc->offset, desc->length);
 		}
 	} else {
 		NUPA_ERROR("Agent data full \r\n");
@@ -409,12 +425,11 @@ broad:
 		NUPA_ERROR("fetch_packet_desc fail \r\n");
 		goto out;
 	}
-	NUPA_DEBUG("nupanet_xmit_frame desc->pos = %d \r\n", desc->pos);
 	//offset should be fetched from dst INFO area
 	offset = desc->offset;
 	desc->length = length;
 
-    xdma_send_data(&adapter->xdev->engine_h2c[0], skb, offset, length);
+    xdma_send_data(adapter, skb, desc);
 
 	//schedule_work(&adapter->xmit_task);
 
@@ -527,7 +542,7 @@ static int nupanet_poll(struct napi_struct *napi, int budget)
     while(1) {
         //TODO:check if need to process packet
         if((desc = nupa_data_available(adapter, host_id))) {
-            skb = xdma_receive_data(adapter, desc->offset, desc->length);
+            skb = xdma_receive_data(adapter, desc);
             if(!skb) {
                 break;
             }
