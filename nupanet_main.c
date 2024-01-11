@@ -308,7 +308,7 @@ void adapter_info_init(struct nupanet_adapter *adapter)
 
 	host_id = adapter->host_id;
 	NUPA_DEBUG("adapter_info_init, host_id = %d", host_id);
-	NUPA_DEBUG("adapter_info_init, sizeof(struct packets_info) = %ld, sizeof(struct packet_desc) = %d \r\n", sizeof(struct packets_info), sizeof(struct packet_desc));
+	NUPA_DEBUG("adapter_info_init, sizeof(struct packets_info) = %ld, sizeof(struct packet_desc) = %ld \r\n", sizeof(struct packets_info), sizeof(struct packet_desc));
 	BUG_ON(host_id >= MAX_AGENT_NUM);
 	shm_base = adapter->shm_info.vaddr;
 	host_base = shm_base + INFO_SIZE * host_id;
@@ -330,6 +330,7 @@ static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb, struct net_device *ne
 {
     char *dest_mac_addr_p;
     char *src_mac_addr_p;
+	char* type;
     int dst_id, this_id;
     struct nupanet_adapter *adapter;
 	int offset, length;
@@ -343,9 +344,12 @@ static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb, struct net_device *ne
     dest_mac_addr_p = (char *)skb->data;
     src_mac_addr_p = (char *)skb->data + ETH_ALEN;
 
+	type = src_mac_addr_p + ETH_ALEN;
+
     NUPA_DEBUG("DEST: %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\r\n",dest_mac_addr_p[0] & 0xFF,dest_mac_addr_p[1] & 0xFF,dest_mac_addr_p[2] & 0xFF, dest_mac_addr_p[3] & 0xFF,dest_mac_addr_p[4] & 0xFF,dest_mac_addr_p[5] & 0xFF);
     NUPA_DEBUG("SRC: %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\r\n",src_mac_addr_p[0] & 0xFF,src_mac_addr_p[1] & 0xFF,src_mac_addr_p[2] & 0xFF, src_mac_addr_p[3] & 0xFF,src_mac_addr_p[4] & 0xFF,src_mac_addr_p[5] & 0xFF);
 
+	NUPA_DEBUG("Type: 0x%.2x%.2x \r\n", type[0] & 0xFF, type[1] & 0xFF);
     if (is_broadcast_ether_addr(dest_mac_addr_p) || is_multicast_ether_addr(dest_mac_addr_p)) {
         NUPA_ERROR("broadcast and multicast currently not supported ,will support later \r\n");
         for(i = 0; i< MAX_AGENT_NUM; i++) {
@@ -543,19 +547,19 @@ static void nupanet_poll_start(struct nupanet_adapter *adapter)
 
 static void nupanet_xmit_task(struct work_struct *work)
 {
+#if 0
 	struct nupanet_adapter *adapter = container_of(work, struct nupanet_adapter, xmit_task);
 	NUPA_DEBUG("XMIT WORK \r\n");
 
 	//xdma_send_data(&adapter->xdev->engine_h2c[0], skb, offset, length);
-
-
-
+#endif
 }
 
 static void nupanet_rcv_task(struct work_struct *work)
 {
+#if 0
 	struct nupanet_adapter *adapter = container_of(work, struct nupanet_adapter, rcv_task);
-
+#endif
 }
 
 
