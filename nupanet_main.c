@@ -322,6 +322,7 @@ struct packet_desc* fetch_packet_desc(struct nupanet_adapter *adapter, int dst_i
 		} else {
 			info->total_len += length;
 			desc->status = PACKET_FREEZING;
+			desc->length = length;
 			info->head = (head + 1) % MAX_DESC_NUM;
 			desc->offset = (AGENT_TOTAL_DMA_SIZE * dst_id) + (desc->pos * DESC_MAX_DMA_SIZE);
 			NUPA_DEBUG("fetch_packet_desc, dst_id = %d, desc->pos = %d, info->head = %d, desc->offset = %d, desc->length = %d \r\n", dst_id, desc->pos, head, desc->offset, desc->length);
@@ -427,7 +428,6 @@ broad:
 	}
 	//offset should be fetched from dst INFO area
 	offset = desc->offset;
-	desc->length = length;
 
     xdma_send_data(adapter, skb, desc);
 

@@ -103,7 +103,7 @@
 #define USR_BAR_SHARING_SIZE              (1 << 12) //4K
 #define MAX_AGENT_NUM                     2
 #define INFO_SIZE                         (USR_BAR_SHARING_SIZE / MAX_AGENT_NUM)
-#define MAX_DESC_NUM                      8
+#define MAX_DESC_NUM                      64
 
 #define AGENT_TOTAL_DMA_SIZE              (TOTAL_DMA_SIZE / MAX_AGENT_NUM)
 #define DESC_MAX_DMA_SIZE                 (AGENT_TOTAL_DMA_SIZE / MAX_DESC_NUM)
