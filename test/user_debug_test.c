@@ -17,9 +17,9 @@
 #define IOCTL_HACK_CTL_ON                _IO(IOCTL_MAGIC, 5)
 #define IOCTL_HACK_CTL_OFF               _IO(IOCTL_MAGIC, 6)
 
-void dump_usr_buf(char* buf, int len)
+void dump_usr_buf(unsigned char* buf, int len, char* info)
 {
-  printf("************************************* DUMP BUF START *************************************************\r\n");
+  printf("************************************* DUMP %s BUF START *************************************************\r\n", info);
   printf("     ");
   for(int i = 0; i < 16; i++) 
     printf("%4X ", i);
@@ -30,7 +30,7 @@ void dump_usr_buf(char* buf, int len)
     }
     printf("%4X ", buf[j]);
   }
-  printf("\n************************************ DUMP BUF END **************************************************\r\n");
+  printf("\n************************************ DUMP %s BUF END **************************************************\r\n", info);
 }
 
 #ifdef SIMPLE_IO_TEST
@@ -44,6 +44,42 @@ static void simple_io_test(void)
     }
     ret = ioctl(fd, IOCTL_RAW_WRITE, NULL);
     ret = ioctl(fd, IOCTL_RAW_READ, NULL);
+    close(fd);
+}
+#endif
+
+#ifdef RND_RW_TEST 
+static void random_read_write_test()
+{
+    int fd;
+    unsigned char* w_buf;
+    unsigned char* r_buf;
+    int len = 100;
+    fd = open("./test8K_ramdom", O_RDWR);
+    if(fd < 0) {
+        fprintf(stderr, "open: %s\n", strerror(errno));
+        exit(-1);
+    }
+    read(fd, w_buf, 4096);
+    dump_usr_buf(w_buf, 4096, "write");
+    close(fd);
+
+    fd = open(DBG_CHAR_DEV, O_RDWR);
+    if(fd < 0) {
+        fprintf(stderr, "open 1: %s\n", strerror(errno));
+        exit(-1);
+    }
+    write(fd, w_buf, len);
+    close(fd);
+
+    r_buf = malloc(4096);
+    fd = open(DBG_CHAR_DEV, O_RDWR);
+    if(fd < 0) {
+        fprintf(stderr, "open 2: %s\n", strerror(errno));
+        exit(-1);
+    }
+    read(fd, r_buf, len);
+    dump_usr_buf(w_buf, 4096, "read");
     close(fd);
 }
 #endif
@@ -76,7 +112,7 @@ static void read_write_test(char cont)
     }
     memset(buf, 0, buf_len);
     read(fd, buf, length);
-    dump_usr_buf(buf, buf_len);
+    dump_usr_buf(buf, buf_len, "");
     close(fd);
 
     fd = open(DBG_CHAR_DEV, O_RDWR);
@@ -86,7 +122,7 @@ static void read_write_test(char cont)
     }
     access_address = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     printf("dump info addr start \r\n");
-    dump_usr_buf(access_address, 4096);
+    dump_usr_buf(access_address, 4096, "");
     printf("dump info addr done \r\n");
     close(fd);
 }
@@ -162,6 +198,10 @@ int main()
 
 #ifdef HACK_CTL_OFF
     hack_control_switch(0);
+#endif
+
+#ifdef RND_RW_TEST 
+random_read_write_test();
 #endif
     return 0;
 }
