@@ -14,7 +14,7 @@ $(TARGET):$(SRC)
 	$(CC) $< -DHACK_CTL_ON -o hack_ctl_on
 	$(CC) $< -DHACK_CTL_OFF -o hack_ctl_off
 	$(CC) $< -DRND_RW_TEST -o rnd_rw_test
-	./test.sh
+	./gen_data.sh
 
 clean:
 	rm -f $(TARGET)
