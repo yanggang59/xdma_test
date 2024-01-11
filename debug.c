@@ -160,7 +160,7 @@ static ssize_t debug_write(struct file *file, const char *src, size_t count, lof
 
 static long debug_ioctl (struct file *file, unsigned int cmd, unsigned long arg)
 {
-	//struct debug_cdev *debug = (struct debug_cdev *)file->private_data;
+	struct debug_cdev *debug = (struct debug_cdev *)file->private_data;
 	NUPA_DEBUG("debug_ioctl , cmd = %#x, arg = %#lx\r\n", cmd, arg);
 	switch(cmd)
 	{
@@ -171,6 +171,14 @@ static long debug_ioctl (struct file *file, unsigned int cmd, unsigned long arg)
 		case IOCTL_RAW_READ:
 			NUPA_DEBUG("debug_ioctl raw read test \r\n");
 			do_raw_read_test(file);
+			break;
+		case IOCTL_DUMP_MSG_ON:
+			NUPA_DEBUG("debug_ioctl dump msg on\r\n");
+			debug->dump_ctl = 1;
+			break;
+		case IOCTL_DUMP_MSG_OFF:
+			NUPA_DEBUG("debug_ioctl dump msg off\r\n");
+			debug->dump_ctl = 0;
 			break;
 		default:
 			break;
@@ -251,6 +259,8 @@ int create_debug_cdev(struct debug_cdev* debug, char* info_buf, int info_len)
 		debug->info_buf = info_buf;
 		debug->info_len = info_len;
 	}
+
+	debug->dump_ctl = 0;
 
 	// add device to the kernel 
 	if (cdev_add(&debug->cdev, debug->cdevno, 1)) {

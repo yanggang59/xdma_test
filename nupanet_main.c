@@ -105,11 +105,11 @@ static int mac_addr_to_host_id(char* mac_addr)
 }
 
 
-/** |=====================================================================
-*   |          |            |            |           |
-*   |   info   |    desc    |    desc    |    ...    |
-*   |          |            |            |           |
-*   |====================================================================
+/** |========================================================================================================================================
+*   |          |            |            |           |               |          |            |            |           |
+*   |   info   |    desc    |    desc    |    ...    |               |   info   |    desc    |    desc    |    ...    |
+*   |          |            |            |           |               |          |            |            |           |
+*   |========================================================================================================================================
 */  
 
 static struct packet_desc* nupa_data_available(struct nupanet_adapter* adapter, int host_id)
@@ -209,9 +209,12 @@ static struct sk_buff * xdma_receive_data(struct nupanet_adapter* adapter, int o
 	char* buf;
 	struct xdma_engine* engine;
 	struct sk_buff *skb;
+	int dump_ctl;
 
 	engine = &adapter->xdev->engine_c2h[0];
 	skb = napi_alloc_skb(&adapter->napi, length);
+
+	dump_ctl = adapter->debug.dump_ctl;
 
 	//do we really need to allocate data here?
 	buf = kmalloc(length, GFP_KERNEL);
@@ -221,6 +224,9 @@ static struct sk_buff * xdma_receive_data(struct nupanet_adapter* adapter, int o
 	}
 	res = xdma_transfer_data(engine, offset, length, buf, false);
 	NUPA_DEBUG("xdma_receive_data, res = %d, expect %d\r\n", res, length);
+	if(dump_ctl) {
+		print_hex_dump(KERN_DEBUG, "rcv : ", DUMP_PREFIX_OFFSET, 16, 1, buf, length, false);
+	}
 	skb_put_data(skb, buf, length);
 #if 0
 	if(res == length) {
@@ -336,10 +342,12 @@ static netdev_tx_t nupanet_xmit_frame(struct sk_buff *skb, struct net_device *ne
 	int offset, length;
 	struct packet_desc* desc;
 	int i;
+	int dump_ctl;
 
 	NUPA_DEBUG("nupanet_xmit_frame\r\n");
 
     adapter = netdev_priv(netdev);
+	dump_ctl = adapter->debug.dump_ctl;
 
     dest_mac_addr_p = (char *)skb->data;
     src_mac_addr_p = (char *)skb->data + ETH_ALEN;
@@ -377,7 +385,8 @@ broad:
 		NUPA_ERROR("skb linear length too big  \r\n");
 		goto out;
 	}
-	
+	if(dump_ctl)
+		print_hex_dump(KERN_DEBUG, "skb->data: ", DUMP_PREFIX_OFFSET, 16, 1, (char *)skb->data, skb_headlen(skb), false);
 	//currently only cope with linear data
 	length = skb_headlen(skb);
 	desc = fetch_packet_desc(adapter, dst_id, length);
