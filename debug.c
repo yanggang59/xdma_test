@@ -29,7 +29,7 @@ void free_resource(struct debug_cdev* debug)
 	}
 }
 
-static int dma_xfer_data(struct debug_cdev* debug, int pos, char* buf, int length, bool is_h2c)
+static int dma_xfer_data(struct debug_cdev* debug, int pos, unsigned char* buf, int length, bool is_h2c)
 {
 	int res;
 	int i;
@@ -40,12 +40,13 @@ static int dma_xfer_data(struct debug_cdev* debug, int pos, char* buf, int lengt
 	struct scatterlist *sg;
 	unsigned int pages_nr;
 	struct sg_table *sgt;
-	if(is_h2c) {
-		NUPA_DEBUG("dma_to_device \r\n");
-	} else {
-		NUPA_DEBUG("dma_from_device \r\n");
-	}
+
 	sgt = kzalloc(sizeof(struct sg_table), GFP_KERNEL);
+	if (!sgt) {
+		NUPA_ERROR("sgt OOM.\n");
+		res = -ENOMEM;
+		goto err_sgt;
+	}
 
 	adapter = container_of(debug, struct nupanet_adapter, debug);
 	xdev = adapter->xdev;
@@ -60,8 +61,14 @@ static int dma_xfer_data(struct debug_cdev* debug, int pos, char* buf, int lengt
 	if (pages_nr == 0)
 		return -EINVAL;
 
+	if(is_h2c) {
+		NUPA_DEBUG("dma_to_device , pages_nr = %d \r\n", pages_nr);
+	} else {
+		NUPA_DEBUG("dma_from_device , pages_nr = %d \r\n", pages_nr);
+	}
+
 	if (sg_alloc_table(sgt, pages_nr, GFP_KERNEL)) {
-		NUPA_ERROR("sgl OOM.\n");
+		NUPA_ERROR("sg table OOM.\n");
 		res = -ENOMEM;
 		goto out;
 	}
@@ -77,7 +84,11 @@ static int dma_xfer_data(struct debug_cdev* debug, int pos, char* buf, int lengt
 
 	res = xdma_xfer_submit(xdev, engine->channel, is_h2c, pos, sgt, dma_mapped, 0);
 out:
-	kfree(sgt);
+	if(sgt) {
+		sg_free_table(sgt);
+		kfree(sgt);
+	}
+err_sgt:
 	return res;
 }
 
