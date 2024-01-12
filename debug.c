@@ -29,7 +29,7 @@ void free_resource(struct debug_cdev* debug)
 	}
 }
 
-static int dma_xfer_data(struct debug_cdev* debug, int pos, unsigned char* buf, int length, bool is_h2c)
+static int dma_xfer_data(struct debug_cdev* debug, int pos, char* buf, int length, bool is_h2c)
 {
 	int res;
 	int i;
@@ -144,11 +144,7 @@ static ssize_t debug_read(struct file *file, char *dst, size_t count, loff_t *f_
 	unsigned char* buf;
 	struct debug_cdev *debug = (struct debug_cdev *)file->private_data;
 	NUPA_DEBUG("debug_read: count = %ld, offset = %lld \r\n", count, *f_offset);
-	if(*f_offset + count > debug->buf_size) {
-		NUPA_ERROR("over read debug file\r\n");
-		return -EINVAL;
-	}
-	buf = kmalloc(count, GFP_KERNEL);
+	buf = kzalloc(count, GFP_KERNEL);
 	if(!buf) {
 		NUPA_ERROR("debug_read kmalloc failed\r\n");
 		return -ENOMEM;
@@ -173,7 +169,7 @@ static ssize_t debug_write(struct file *file, const char *src, size_t count, lof
 		NUPA_ERROR("over write debug file\r\n");
 		return -EINVAL;
 	}
-	buf = kmalloc(count, GFP_KERNEL);
+	buf = kzalloc(count, GFP_KERNEL);
 	if(!buf) {
 		NUPA_ERROR("debug_write kmalloc failed\r\n");
 		return -ENOMEM;

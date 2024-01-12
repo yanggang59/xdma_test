@@ -98,7 +98,7 @@ static int random_read_write_test()
         exit(-1);
     }
     read(fd, w_buf, 4096);
-    dump_usr_buf(w_buf, 1024, "write");
+    dump_usr_buf(w_buf, len, "write");
     close(fd);
 
     fd = open(DBG_CHAR_DEV, O_RDWR);
@@ -121,7 +121,7 @@ static int random_read_write_test()
         exit(-1);
     }
     read(fd, r_buf, len);
-    dump_usr_buf(r_buf, 1024, "read");
+    dump_usr_buf(r_buf, len, "read");
     close(fd);
 
     ret = memcmp(w_buf, r_buf, len);

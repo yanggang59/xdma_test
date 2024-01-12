@@ -11,8 +11,6 @@
 
 #define DRV_MODULE_NAME          "nupanet"
 
-#define USE_NO_WAIT              0
-
 MODULE_AUTHOR("Clussys, Inc.");
 MODULE_LICENSE("Dual BSD/GPL");
 
@@ -191,11 +189,9 @@ static int xdma_transfer_data(struct xdma_engine* engine, int offset, int length
 		length -= nbytes;
 		sg = sg_next(sg);
 	}
-#if USE_NO_WAIT
-	res = xdma_xfer_submit_nowait(NULL, xdev, engine->channel, is_write, offset, sgt, false, 0);
-#else
+
 	res = xdma_xfer_submit(xdev, engine->channel, is_write, offset, sgt, false, 0);
-#endif
+
 	if(is_write) {
 		NUPA_DEBUG("write: transferred %d \r\n", res);
 	} else {
@@ -253,6 +249,7 @@ static struct sk_buff * xdma_receive_data(struct nupanet_adapter* adapter, struc
 
 static int xdma_send_data(struct nupanet_adapter *adapter, struct sk_buff *skb, struct packet_desc* desc)
 {
+	int ret;
 	unsigned char* buf;
 	struct xdma_engine* engine;
 	int offset, length;
@@ -268,8 +265,9 @@ static int xdma_send_data(struct nupanet_adapter *adapter, struct sk_buff *skb, 
 	if(dump_ctl)
 		print_hex_dump(KERN_DEBUG, "send_buf: ", DUMP_PREFIX_OFFSET, 16, 1, buf, length, false);
 	NUPA_DEBUG("xdma_send_data, desc->pos = %d, desc->offset = %d, desc->length = %d \r\n",desc->pos, desc->offset, desc->length);
+	ret = xdma_transfer_data(engine, offset, length, buf, true);
 	kfree(buf);
-	return xdma_transfer_data(engine, offset, length, buf, true);
+	return ret;
 }
 
 static bool mac_addr_valid(char* mac_addr)
@@ -595,7 +593,8 @@ static void nupanet_xmit_task(struct work_struct *work)
 	struct nupanet_adapter *adapter = container_of(work, struct nupanet_adapter, xmit_task);
 	NUPA_DEBUG("XMIT WORK \r\n");
 
-	//xdma_send_data(&adapter->xdev->engine_h2c[0], skb, offset, length);
+	xdma_send_data(&adapter->xdev->engine_h2c[0], skb, desc);
+
 #endif
 }
 
