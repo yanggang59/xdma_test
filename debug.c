@@ -127,16 +127,24 @@ static void do_raw_write_test(struct file *file, char content)
 static ssize_t debug_read(struct file *file, char *dst, size_t count, loff_t *f_offset) 
 {
 	int res;
+	unsigned char* buf;
 	struct debug_cdev *debug = (struct debug_cdev *)file->private_data;
 	NUPA_DEBUG("debug_read: count = %ld, offset = %lld \r\n", count, *f_offset);
 	if(*f_offset + count > debug->buf_size) {
 		NUPA_ERROR("over read debug file\r\n");
 		return -EINVAL;
 	}
-	res = dma_xfer_data(debug, *f_offset, debug->buf, count, false);
-	if(copy_to_user(dst, debug->buf + *f_offset, count))
+	buf = kmalloc(count, GFP_KERNEL);
+	if(!buf) {
+		NUPA_ERROR("debug_read kmalloc failed\r\n");
+		return -ENOMEM;
+	}
+	res = dma_xfer_data(debug, *f_offset, buf, count, false);
+	print_hex_dump(KERN_DEBUG, "debug_read : ", DUMP_PREFIX_OFFSET, 16, 1, buf, count, false);
+	if(copy_to_user(dst, buf, count))
 		return -EFAULT;
 	*f_offset += count;
+	kfree(buf);
 	NUPA_DEBUG("debug_read done : count = %ld, offset = %lld , res = %d \r\n", count, *f_offset, res);
 	return count;
 }
@@ -144,15 +152,22 @@ static ssize_t debug_read(struct file *file, char *dst, size_t count, loff_t *f_
 static ssize_t debug_write(struct file *file, const char *src, size_t count, loff_t *f_offset) 
 {
 	int res;
+	unsigned char* buf;
 	struct debug_cdev *debug = (struct debug_cdev *)file->private_data;
 	NUPA_DEBUG("debug_write: count = %ld, offset = %lld \r\n", count, *f_offset);
 	if(*f_offset + count > debug->buf_size) {
 		NUPA_ERROR("over write debug file\r\n");
 		return -EINVAL;
 	}
-	if (copy_from_user(debug->buf, src, count) != 0)
+	buf = kmalloc(count, GFP_KERNEL);
+	if(!buf) {
+		NUPA_ERROR("debug_write kmalloc failed\r\n");
+		return -ENOMEM;
+	}
+	if (copy_from_user(buf, src, count) != 0)
 		return -EFAULT;
-	res = dma_xfer_data(debug, *f_offset, debug->buf, count, true);
+	res = dma_xfer_data(debug, *f_offset, buf, count, true);
+	print_hex_dump(KERN_DEBUG, "debug_write : ", DUMP_PREFIX_OFFSET, 16, 1, buf, count, false);
 	*f_offset += count;
 	NUPA_DEBUG("debug_write done : count = %ld, offset = %lld , res = %d \r\n", count, *f_offset, res);
 	return count;
