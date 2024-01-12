@@ -97,7 +97,7 @@
 #endif
 
 //MAX DMA Size is 256K
-#define TOTAL_DMA_SIZE                     (64 << 12) //256K
+#define TOTAL_DMA_SIZE                    (64 << 12) //256K
 
 //Truly usable mem size is 32K
 #define USR_BAR_SHARING_SIZE              (1 << 12) //4K
@@ -119,8 +119,6 @@ struct packet_desc {
 	int pos;
 	int offset;
 	int length;
-	int next;
-	int prev;
 	enum packet_desc_status status;
 };
 

@@ -427,9 +427,6 @@ broad:
     xdma_send_data(adapter, skb, desc);
 
 	//schedule_work(&adapter->xmit_task);
-
-	//notify buddy, change to interrupt mechanism later 
-	//nupa_notify_data_available(adapter, dst_id);
 	desc->status = PACKET_SETTLED;
 
 out:
