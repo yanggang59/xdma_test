@@ -76,6 +76,8 @@ static int dma_xfer_data(struct debug_cdev* debug, int pos, unsigned char* buf, 
 	for (i = 0; i < pages_nr; i++) {
 		unsigned int offset = offset_in_page(buf);
 		unsigned int nbytes = min_t(unsigned int, PAGE_SIZE - offset, length);
+		struct page* page = virt_to_page(buf);
+		flush_dcache_page(page);
 		sg_set_buf(sg, buf, nbytes);
 		buf += nbytes;
 		length -= nbytes;
@@ -83,6 +85,7 @@ static int dma_xfer_data(struct debug_cdev* debug, int pos, unsigned char* buf, 
 	}
 
 	res = xdma_xfer_submit(xdev, engine->channel, is_h2c, pos, sgt, dma_mapped, 0);
+	NUPA_DEBUG("xdma_xfer_submit: res = %d \r\n", res);
 out:
 	if(sgt) {
 		sg_free_table(sgt);

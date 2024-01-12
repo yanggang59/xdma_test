@@ -184,6 +184,8 @@ static int xdma_transfer_data(struct xdma_engine* engine, int offset, int length
 	for (i = 0; i < pages_nr; i++) {
 		unsigned int offset = offset_in_page(buf);
 		unsigned int nbytes = min_t(unsigned int, PAGE_SIZE - offset, length);
+		struct page* page = virt_to_page(buf);
+		flush_dcache_page(page);
 		sg_set_buf(sg, buf, nbytes);
 		buf += nbytes;
 		length -= nbytes;
@@ -231,19 +233,6 @@ static struct sk_buff * xdma_receive_data(struct nupanet_adapter* adapter, struc
 	}
 	res = xdma_transfer_data(engine, offset, length, buf, false);
 	NUPA_DEBUG("xdma_receive_data, res = %d, expect %d\r\n", res, length);
-	if(hack_ctl && (length==42)) {
-		buf[32] = 0;
-		buf[33] = 0;
-		buf[34] = 0;
-		buf[35] = 0;
-		buf[36] = 0;
-		buf[37] = 0;
-	
-		buf[38] = 0xC0;
-		buf[39] = 0xa8;
-		buf[40] = 0x08;
-		buf[41] = 0x64;
-	}
 	if(dump_ctl) {
 		NUPA_DEBUG("xdma_receive_data, desc->pos =  %d, offset = %d, length = %d \r\n", desc->pos, desc->offset, desc->length);
 		print_hex_dump(KERN_DEBUG, "rcv : ", DUMP_PREFIX_OFFSET, 16, 1, buf, length, false);
