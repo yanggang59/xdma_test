@@ -17,32 +17,34 @@ int main(int argc, char* argv[]) {
 	char send_msg[BUFFER_SIZE];
 	struct sockaddr_in server_addr;
 	int server_sock_fd;
-	int c;
 	int port = -1;
 	char* ip_addr = NULL;
 	if(argc == 1)
 		goto no_args;
-	static struct option long_options[] = {
-			{.name = "port", .has_arg = 1, .val = 'p'},
-			{.name = "ip", .has_arg = 1, .val = 'i'},
-			{.name = NULL, .has_arg = 0, .val = '\0'}
-    };
-
-	c = getopt_long(argc, argv, "p:i:", long_options, NULL);
-	if (c == -1) {
-		printf("Input params wrong \r\n");
-		return -1;
-	}
-	switch (c)
-	{
-		case 'p':
-			port = strtoul(optarg, NULL, 0);
+	while(1) {
+		int c;
+		static struct option long_options[] = {
+				{.name = "port", .has_arg = 1, .val = 'p'},
+				{.name = "ip", .has_arg = 1, .val = 'i'},
+				{.name = NULL, .has_arg = 0, .val = '\0'}
+		};
+		c = getopt_long(argc, argv, "p:i:", long_options, NULL);
+		if (c == -1) {
 			break;
-		case 'i':
-			ip_addr = strdup(optarg);
-			break;
-		default:
-			break;
+		}
+		switch (c)
+		{
+			case 'p':
+				port = strtoul(optarg, NULL, 0);
+				printf("port = %d \r\n", port);
+				break;
+			case 'i':
+				ip_addr = strdup(optarg);
+				printf("IP = %s \r\n", ip_addr);
+				break;
+			default:
+				break;
+		}
 	}
 no_args:
 	if(port == -1) {

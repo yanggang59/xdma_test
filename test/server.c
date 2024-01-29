@@ -19,29 +19,30 @@ int main(int argc, char* argv[]) {
 	char send_msg[BUFFER_SIZE];
 	char recv_msg[BUFFER_SIZE];
 	struct sockaddr_in server_addr;
-	int c;
 	int port = -1;
 	char* ip_addr = NULL;
 
 	if(argc == 1)
 		goto no_args;
-	static struct option long_options[] = {
-			{.name = "port", .has_arg = 1, .val = 'p'},
-			{.name = NULL, .has_arg = 0, .val = '\0'}
-    };
+	while(1) {
+		int c;
+		static struct option long_options[] = {
+				{.name = "port", .has_arg = 1, .val = 'p'},
+				{.name = NULL, .has_arg = 0, .val = '\0'}
+		};
 
-	c = getopt_long(argc, argv, "p:i:", long_options, NULL);
-	if (c == -1) {
-		printf("Input params wrong \r\n");
-		return -1;
-	}
-	switch (c)
-	{
-		case 'p':
-			port = strtoul(optarg, NULL, 0);
+		c = getopt_long(argc, argv, "p:i:", long_options, NULL);
+		if (c == -1) {
 			break;
-		default:
-			break;
+		}
+		switch (c)
+		{
+			case 'p':
+				port = strtoul(optarg, NULL, 0);
+				break;
+			default:
+				break;
+		}
 	}
 no_args:
 	if(port == -1) {
