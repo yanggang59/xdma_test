@@ -36,11 +36,11 @@ int main(int argc, char* argv[]) {
 		{
 			case 'p':
 				port = strtoul(optarg, NULL, 0);
-				printf("port = %d \r\n", port);
+				printf("[Info] port = %d \r\n", port);
 				break;
 			case 'i':
 				ip_addr = strdup(optarg);
-				printf("IP = %s \r\n", ip_addr);
+				printf("[Info] IP = %s \r\n", ip_addr);
 				break;
 			default:
 				break;
@@ -48,11 +48,11 @@ int main(int argc, char* argv[]) {
 	}
 no_args:
 	if(port == -1) {
-		printf("Port not set, default to 9999 \r\n");
+		printf("[Info] Port not set, default to 9999 \r\n");
 		port = DEFAULT_CLIENT_PORT;
 	}
 	if(!ip_addr) {
-		printf("Server IP not set, default to localhost \r\n");
+		printf("[Info] Server IP not set, default to localhost \r\n");
 		ip_addr = "127.0.0.1";
 	}
 
@@ -93,16 +93,16 @@ no_args:
 				bzero(recv_msg, BUFFER_SIZE);
 				int n = recv(server_sock_fd, recv_msg, BUFFER_SIZE, 0);
 				if (n > 0) {
-					printf("recv %d byte\n",n);
+					printf("[Info] recv %d byte\n",n);
 					if (n > BUFFER_SIZE) {
 						n = BUFFER_SIZE;
 					}
 					recv_msg[n] = '\0';
-					printf("From Server :%s\n", recv_msg);
+					printf("[MSG] From Server :%s\n", recv_msg);
 				} else if (n < 0) {
-					printf("Receive msg wrongly !\n");
+					printf("[Error] Receive msg wrongly !\n");
 				} else {
-					printf("Server closed!\n");
+					printf("[Info] Server closed!\n");
 					close(server_sock_fd);
 					exit(0);
 				}

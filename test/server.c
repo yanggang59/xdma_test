@@ -54,8 +54,9 @@ no_args:
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_port = htons(port);
 	server_addr.sin_addr.s_addr = INADDR_ANY;
-
-
+	printf("------------------------------------------------------ \r\n");
+	printf("[Info] Server listening on port %d \r\n", port);
+	printf("------------------------------------------------------ \r\n");
 	server_sock_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (server_sock_fd < 0) {
 		printf("create socket error:%s(errno:%d)\n",strerror(errno),errno);
@@ -105,7 +106,7 @@ no_args:
 			printf("select error:%s(errno:%d)\n",strerror(errno),errno);
 			continue;
 		} else if (result == 0) {
-			printf("select 超时\n");
+			printf("select timeout\n");
 			continue;
 		} else {
 			if (FD_ISSET(STDIN_FILENO, &server_fd_set)) {
@@ -117,7 +118,7 @@ no_args:
 				}
 				for (int i = 0; i < CONCURRENT_MAX; i++) {
 					if (client_fd[i] != 0) {
-						printf("Send to Clinet: ");
+						printf("[Info] Send to Clinet: ");
 						printf("client_fd[%d]=%d\n", i, client_fd[i]);
 						send(client_fd[i], send_msg, strlen(send_msg), 0);
 					}
@@ -127,7 +128,7 @@ no_args:
 				struct sockaddr_in client_address;
 				socklen_t address_len;
 				int client_sock_fd = accept(server_sock_fd,(struct sockaddr *) &client_address, &address_len);
-				printf("new connection client_sock_fd = %d\n", client_sock_fd);
+				printf("[Info] New connection client_sock_fd = %d\n", client_sock_fd);
 				if (client_sock_fd > 0) {
 					int index = -1;
 					for (int i = 0; i < CONCURRENT_MAX; i++) {
@@ -138,14 +139,14 @@ no_args:
 						}
 					}
 					if (index >= 0) {
-						printf("New Clinet[%d] [%s:%d] connect success\n", index,
+						printf("[Info] New Clinet[%d] [%s:%d] connect success\n", index,
 								inet_ntoa(client_address.sin_addr),
 								ntohs(client_address.sin_port));
 					} else {
 						bzero(send_msg, BUFFER_SIZE);
-						strcpy(send_msg, "Server Connection are maximum, connect fail!\n");
+						strcpy(send_msg, "Server Connection upto maximum, connect fail!\n");
 						send(client_sock_fd, send_msg, strlen(send_msg), 0);
-						printf("Server Connection are maximum, new client[%s:%d] connect fail\n",
+						printf("Server Connection upto maximum, new client[%s:%d] connect fail\n",
 								inet_ntoa(client_address.sin_addr),
 								ntohs(client_address.sin_port));
 					}
@@ -161,13 +162,13 @@ no_args:
 								n = BUFFER_SIZE;
 							}
 							recv_msg[n] = '\0';
-							printf("From client [%d] msg:%s\n", i, recv_msg);
+							printf("[MSG] From client [%d] msg:%s\n", i, recv_msg);
 						} else if (n < 0) {
-							printf("From clinet [%d] recerive msg wrong!\n", i);
+							printf("[Error] From clinet [%d] recerive msg wrong!\n", i);
 						} else {
 							FD_CLR(client_fd[i], &server_fd_set);
 							client_fd[i] = 0;
-							printf("Client [%d] close connection\n", i);
+							printf("[Info] Client [%d] close connection\n", i);
 						}
 					}
 				}
