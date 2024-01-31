@@ -19,6 +19,7 @@ $(TARGET):
 	$(CC) $(USR_TEST_SRC) -DHOLD_IC_CTL_OFF -o hold_ic_ctl_off
 	$(CC) server.c -o server
 	$(CC) client.c -o client
+	cp $(TARGET) ../build
 
 
 
